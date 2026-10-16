@@ -1,0 +1,14 @@
+{
+  "name": "snapscore",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Snap a photo of a product and get a single 0-100 score with an actionable verdict: Buy now, Wait, Skip, or Sell for $X.",
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:mobile": "npm --prefix mobile run start",
+    "build:server": "npm --prefix server run build",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix mobile run typecheck",
+    "install:all": "npm install && npm --prefix server install && npm --prefix mobile install"
+  },
+  "license": "MIT"
+}
