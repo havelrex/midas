@@ -12,7 +12,10 @@ price through Visa Intelligent Commerce. Electronics is the demo category.
   up by a human in Xcode; agents never change signing, bundle ID, or team settings.
 - Testing: see "Dev machines and testing" below.
 - Backend: small API server. Holds all API keys, scoring config, and Visa calls. Keys never ship in the app.
-- DB + auth: TBD by Stanley (Supabase or Firebase). Update this line once decided.
+- DB + auth: Supabase (Auth with email + password, Postgres, Storage). The app reads and writes
+  `items` directly with supabase-js, protected by RLS (`user_id = auth.uid()`). The server verifies the
+  user's JWT (`server/src/middleware/requireUser.ts`) and uses the service-role key only for automation.
+  Call the server through `app/lib/apiFetch.ts` so the access token is attached. Schema: `supabase/migrations/`.
 - Image analysis: Gemini API (vision), structured JSON output.
 - Listings: SerpAPI (Google Shopping) + eBay Browse API.
 - Checkout: Visa Intelligent Commerce, sandbox only, with a fake merchant we add.
