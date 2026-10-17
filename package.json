@@ -3,12 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "description": "Snap a photo of a product and get a single 0-100 score with an actionable verdict: Buy now, Wait, Skip, or Sell for $X.",
+  "license": "MIT",
+  "main": "index.ts",
   "scripts": {
-    "dev:server": "npm --prefix server run dev",
-    "dev:mobile": "npm --prefix mobile run start",
-    "build:server": "npm --prefix server run build",
-    "typecheck": "npm --prefix server run typecheck && npm --prefix mobile run typecheck",
-    "install:all": "npm install && npm --prefix server install && npm --prefix mobile install"
+    "start": "expo start --dev-client --tunnel",
+    "ios": "expo start --dev-client --ios",
+    "typecheck": "tsc --noEmit"
   },
-  "license": "MIT"
+  "dependencies": {
+    "expo": "~58.0.14",
+    "expo-camera": "~58.0.10",
+    "expo-dev-client": "~58.0.14",
+    "expo-status-bar": "~58.0.3",
+    "react": "19.3.0",
+    "react-native": "0.88.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "typescript": "~6.0.3"
+  }
 }
