@@ -150,11 +150,24 @@ export function ItemDetailView({
   return (
     <>
       <ScrollView contentContainerStyle={styles.content}>
-        {!!item.thumbnail_url && <Image source={{ uri: item.thumbnail_url }} style={styles.photo} />}
         <View style={styles.hero}>
-          <View style={[styles.ring, { borderColor: verdict.color }]}>
-            <Text style={styles.ringScore}>{item.score}</Text>
-          </View>
+          {/* Same photo + score badge as the Library tile, so it reads as the item you tapped. */}
+          {item.thumbnail_url ? (
+            <View accessible accessibilityLabel={`Score ${item.score} out of 100, ${verdict.label}`}>
+              <Image source={{ uri: item.thumbnail_url }} style={styles.thumb} />
+              <View style={[styles.badge, { borderColor: verdict.color }]}>
+                <Text style={styles.badgeText}>{item.score}</Text>
+              </View>
+            </View>
+          ) : (
+            <View
+              accessible
+              accessibilityLabel={`Score ${item.score} out of 100, ${verdict.label}`}
+              style={[styles.ring, { borderColor: verdict.color }]}
+            >
+              <Text style={styles.ringScore}>{item.score}</Text>
+            </View>
+          )}
           <View style={styles.heroText}>
             {(item.brand || item.model) && (
               <Text style={styles.brand} numberOfLines={1}>
@@ -293,9 +306,21 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.5 },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
 
-  // The user's own snap, so it's obvious which item this is.
-  photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: 12, backgroundColor: colors.fill, marginBottom: 16 },
   hero: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  thumb: { width: 96, height: 96, borderRadius: 12, backgroundColor: colors.fill },
+  badge: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 3,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { color: '#fff', fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
   // Full ring rather than a progress arc: arcs need react-native-svg (native, Havel's call).
   ring: {
     width: 84,
