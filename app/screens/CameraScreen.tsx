@@ -6,7 +6,7 @@ import { apiFetch } from '../lib/apiFetch';
 import { scoreItem, ScoreUnavailableError } from '../lib/scoreApi';
 import type { AnalysisOutput, LibraryItem, ScoreOutput } from '../../shared/contracts';
 import ScoreCard from '../components/ScoreCard';
-import { colors } from '../lib/theme';
+import { useTheme } from '../lib/theme';
 import UndoBar from '../components/UndoBar';
 import { type ScoreStatus, type Snap, useSaveSnap } from '../features/library/useSaveSnap';
 import { saveItem } from '../features/library/api';
@@ -32,6 +32,7 @@ interface Props {
 }
 
 export default function CameraScreen({ onOpenLibrary, onOpenProfile, onOpenCheckout }: Props) {
+  const { colors } = useTheme(); // the detail sheet follows Light/Dark; the camera itself stays dark
   const camera = useRef<CameraView>(null);
   const captureInProgress = useRef(false);
   const session = useRef(0);
@@ -387,9 +388,9 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile, onOpenCheck
       </View>
 
       <Modal visible={detailOpen && !!draft} presentationStyle="pageSheet" animationType="slide" onRequestClose={() => setDetailOpen(false)}>
-        <View style={styles.sheetBar}>
+        <View style={[styles.sheetBar, { backgroundColor: colors.groupedBackground }]}>
           <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setDetailOpen(false)}>
-            <Text style={styles.sheetDone}>Done</Text>
+            <Text style={[styles.sheetDone, { color: colors.tint }]}>Done</Text>
           </Pressable>
         </View>
         {draft && snap && <ItemDetailView item={draft} onCheckout={() => { setDetailOpen(false); void checkout(snap); }} />}
@@ -409,8 +410,8 @@ const styles = StyleSheet.create({
   preview: { flex: 1, overflow: 'hidden' },
   fill: { width: '100%', height: '100%' },
   cardLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
-  sheetBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, backgroundColor: colors.groupedBackground },
-  sheetDone: { color: colors.tint, fontSize: 17, fontWeight: '600' },
+  sheetBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }, // background from the theme
+  sheetDone: { fontSize: 17, fontWeight: '600' }, // color from the theme
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 112, padding: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // Library / Profile: drawn icons (no icon package) in 52pt circles.

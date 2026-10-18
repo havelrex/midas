@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import type { AnalysisOutput, ScoreOutput } from '../../shared/contracts';
 import type { ScoreStatus } from '../features/library/useSaveSnap';
-import { colors } from '../lib/theme';
+import { themedStyles, useTheme } from '../lib/theme';
 import { formatPrice, VERDICT_DISPLAY, verdictReason } from '../lib/verdict';
 
 interface Props {
@@ -52,6 +52,8 @@ const isSideways = (g: { dx: number; dy: number }) => Math.abs(g.dx) > 10 && Mat
 export default function ScoreCard({
   photoUri, analysis, score, status, onSave, onDelete, onOpen, onRetry, onCheckout, checkingOut = false,
 }: Props) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const panX = useRef(new Animated.Value(0)).current;
   const canSave = status === 'ready' && !!score;
@@ -167,7 +169,7 @@ export default function ScoreCard({
             accessibilityState={{ disabled: checkingOut, busy: checkingOut }}
             style={({ pressed }) => [styles.checkout, (pressed || checkingOut) && styles.checkoutPressed]}
           >
-            {checkingOut ? <ActivityIndicator color="#fff" /> : (
+            {checkingOut ? <ActivityIndicator color={colors.onPrimary} /> : (
               <Text style={styles.checkoutText}>
                 Checkout · {formatPrice(score.best_listing.price + score.best_listing.shipping)}
               </Text>
@@ -254,15 +256,15 @@ export default function ScoreCard({
 
 // Light "glass" look. A real backdrop blur needs a native package (expo-blur / expo-glass-effect),
 // which needs a new build; until then it's a near-opaque white panel with a bright edge and soft shadow.
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   card: {
     width: '90%',
     maxWidth: 420,
     maxHeight: '96%', // of the photo area; the ScrollView inside takes over past this
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: colors.elevated,
     borderRadius: 34,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.9)',
+    borderColor: colors.elevatedEdge,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 0.16,
@@ -303,7 +305,7 @@ const styles = StyleSheet.create({
   name: { color: colors.label, fontSize: 20, fontWeight: '700', lineHeight: 24 },
   pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, marginTop: 2 },
   pillText: { color: '#000', fontSize: 13, fontWeight: '700' },
-  summary: { color: '#48484a', fontSize: 15, lineHeight: 20 },
+  summary: { color: colors.body, fontSize: 15, lineHeight: 20 },
   reason: { color: colors.label, fontSize: 15, lineHeight: 20, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   flex: { flex: 1 },
@@ -313,7 +315,7 @@ const styles = StyleSheet.create({
   // only color on the card. Blue is kept for text links.
   checkout: { minHeight: 52, borderRadius: 14, backgroundColor: colors.label, alignItems: 'center', justifyContent: 'center' },
   checkoutPressed: { opacity: 0.8 },
-  checkoutText: { color: '#fff', fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  checkoutText: { color: colors.onPrimary, fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
   // Secondary button: same shape as the primary, grey fill.
   toggle: {
     flexDirection: 'row',
@@ -323,7 +325,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.95)',
+    borderColor: colors.elevatedEdge,
     backgroundColor: colors.fill,
   },
   toggleText: { color: colors.label, fontSize: 15, fontWeight: '600' },
@@ -342,15 +344,15 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: colors.inset,
     borderWidth: 1,
-    borderColor: 'rgba(60,60,67,0.08)',
+    borderColor: colors.fill,
   },
   sub: { gap: 6 },
   subTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
   subLabel: { flexShrink: 1, color: colors.label, fontSize: 15, fontWeight: '600' },
   barTrack: { height: 6, borderRadius: 3, backgroundColor: colors.fill, overflow: 'hidden' },
-  barFill: { height: 6, borderRadius: 3, backgroundColor: '#1c1c1e' },
+  barFill: { height: 6, borderRadius: 3, backgroundColor: colors.barFill },
   subValue: { color: colors.label, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
   subReason: { color: colors.secondaryLabel, fontSize: 13, lineHeight: 18 },
   priceRow: {
@@ -371,7 +373,7 @@ const styles = StyleSheet.create({
   hintChevron: { width: 7, height: 7, borderColor: colors.secondaryLabel, borderLeftWidth: 1.75, borderBottomWidth: 1.75 },
   hintChevronLeft: { transform: [{ rotate: '45deg' }], marginLeft: 3 },
   hintChevronRight: { transform: [{ rotate: '-135deg' }], marginRight: 3 },
-});
+}));
 
 const SUBSCORES = [
   { key: 'quality', label: 'Quality' },

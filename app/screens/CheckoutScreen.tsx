@@ -17,7 +17,7 @@ import { randomUUID } from 'expo-crypto';
 import type { ItemCheckout, PaymentSheetConfig, OrderSummary } from '../../shared/checkout';
 import { useItem } from '../features/library/hooks';
 import { apiFetch } from '../lib/apiFetch';
-import { colors } from '../lib/theme';
+import { themedStyles, useTheme } from '../lib/theme';
 import { formatPrice } from '../lib/verdict';
 
 type Config = { sandbox: boolean; currency: string; consentVersion: 'sandbox-autobuy-v1'; consentText: string };
@@ -33,6 +33,8 @@ interface Props {
 // Only demo items can be bought: the server says `eligible` when it holds a sandbox offer for the item.
 // Everything else shows its price with Buy disabled. Test mode only; Stripe test keys are enforced below.
 export default function CheckoutScreen({ itemId, onBack, backLabel = 'Back' }: Props) {
+  const styles = useStyles();
+  const { colors, mode } = useTheme();
   const { item } = useItem(itemId);
   const [state, setState] = useState<ItemCheckout | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
@@ -233,6 +235,7 @@ export default function CheckoutScreen({ itemId, onBack, backLabel = 'Back' }: P
                     <Text style={styles.rowLabel}>Target total</Text>
                     <Text style={styles.dollar}>$</Text>
                     <TextInput
+                      keyboardAppearance={mode}
                       accessibilityLabel="Target total in dollars, including shipping"
                       placeholder="0.00"
                       placeholderTextColor={colors.secondaryLabel}
@@ -271,7 +274,7 @@ export default function CheckoutScreen({ itemId, onBack, backLabel = 'Back' }: P
           accessibilityState={{ disabled: busy || !canBuy, busy }}
           style={({ pressed }) => [styles.primary, (busy || !canBuy) && styles.disabled, pressed && styles.primaryPressed]}
         >
-          {busy ? <ActivityIndicator color="#fff" /> : (
+          {busy ? <ActivityIndicator color={colors.onPrimary} /> : (
             <Text style={styles.primaryText}>
               {/* A disabled button always says why. */}
               {purchased ? 'Purchased'
@@ -287,6 +290,7 @@ export default function CheckoutScreen({ itemId, onBack, backLabel = 'Back' }: P
 }
 
 function Row({ label, value, divider, bold, good }: { label: string; value: string; divider?: boolean; bold?: boolean; good?: boolean }) {
+  const styles = useStyles();
   return (
     <View style={[styles.row, divider && styles.divider]}>
       <Text style={[styles.rowLabel, bold && styles.bold, good && styles.good]}>{label}</Text>
@@ -296,6 +300,7 @@ function Row({ label, value, divider, bold, good }: { label: string; value: stri
 }
 
 function TextButton({ label, onPress, disabled, destructive }: { label: string; onPress: () => void; disabled?: boolean; destructive?: boolean }) {
+  const styles = useStyles();
   return (
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} hitSlop={8}
       style={({ pressed }) => [styles.textButton, (disabled || pressed) && styles.pressed]}>
@@ -305,7 +310,7 @@ function TextButton({ label, onPress, disabled, destructive }: { label: string; 
 }
 
 // Same grouped look as the item detail screen.
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.groupedBackground },
   back: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: 16, alignSelf: 'flex-start' },
   // Drawn chevron, same as LibraryScreen's.
@@ -375,5 +380,5 @@ const styles = StyleSheet.create({
   primary: { minHeight: 52, borderRadius: 14, backgroundColor: colors.label, alignItems: 'center', justifyContent: 'center' }, // black, as Sign In
   primaryPressed: { opacity: 0.8 },
   disabled: { opacity: 0.4 },
-  primaryText: { color: '#fff', fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
-});
+  primaryText: { color: colors.onPrimary, fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
+}));

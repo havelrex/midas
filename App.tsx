@@ -7,9 +7,10 @@ import LibraryScreen from './app/screens/LibraryScreen';
 import ItemDetailScreen from './app/screens/ItemDetailScreen';
 import ProfileScreen from './app/screens/ProfileScreen';
 import CheckoutScreen from './app/screens/CheckoutScreen';
+import { ThemeProvider } from './app/lib/ThemeProvider';
 
 export default function App() {
-  return <AuthProvider><Root /></AuthProvider>;
+  return <ThemeProvider><AuthProvider><Root /></AuthProvider></ThemeProvider>;
 }
 
 function Root() {

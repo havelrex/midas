@@ -16,7 +16,7 @@ import type { LibraryItem, SubScores } from '../../shared/contracts';
 import { removeItem, stopWatching } from '../features/library/api';
 import { useItem } from '../features/library/hooks';
 import { createDemoOffer, DEMO_TOOLS_ENABLED, dropDemoPrice } from '../lib/demoApi';
-import { colors } from '../lib/theme';
+import { themedStyles, useTheme } from '../lib/theme';
 import { formatPrice, VERDICT_DISPLAY, verdictReason } from '../lib/verdict';
 
 interface Props {
@@ -27,6 +27,8 @@ interface Props {
 
 // Pushed from a Library tile. Reads the saved row and stays live (e.g. watching -> purchased).
 export default function ItemDetailScreen({ id, onBack, onCheckout }: Props) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { item, loading, error, deleted, refresh } = useItem(id);
 
   let body: ReactNode;
@@ -91,6 +93,8 @@ export function ItemDetailView({
   onCheckout: () => void;
   onDeleted?: () => void;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const verdict = VERDICT_DISPLAY[item.verdict];
   const listing = item.best_listing;
   const [busy, setBusy] = useState(false);
@@ -302,7 +306,7 @@ export function ItemDetailView({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.groupedBackground },
   back: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: 16, alignSelf: 'flex-start' },
   // Drawn chevron, same as LibraryScreen's.
@@ -371,7 +375,7 @@ const styles = StyleSheet.create({
   subLabel: { color: colors.label, fontSize: 17 },
   subValue: { color: colors.secondaryLabel, fontSize: 17, fontVariant: ['tabular-nums'] },
   barTrack: { height: 4, borderRadius: 2, backgroundColor: colors.fill },
-  barFill: { height: 4, borderRadius: 2, backgroundColor: '#3a3a3c' },
+  barFill: { height: 4, borderRadius: 2, backgroundColor: colors.barFill },
   subReason: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 20 },
 
   listingRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 16 },
@@ -404,7 +408,7 @@ const styles = StyleSheet.create({
   actionError: { color: colors.destructive, fontSize: 15, lineHeight: 20 },
   primary: { minHeight: 52, borderRadius: 14, backgroundColor: colors.label, alignItems: 'center', justifyContent: 'center' }, // black, as Sign In
   primaryPressed: { opacity: 0.8 },
-  primaryText: { color: '#fff', fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  primaryText: { color: colors.onPrimary, fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
   status: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -427,4 +431,4 @@ const styles = StyleSheet.create({
   retryText: { color: colors.tint, fontSize: 17, fontWeight: '600' },
   emptyTitle: { color: colors.label, fontSize: 22, fontWeight: '700', textAlign: 'center' },
   emptyBody: { color: colors.secondaryLabel, fontSize: 17, lineHeight: 22, textAlign: 'center' },
-});
+}));
