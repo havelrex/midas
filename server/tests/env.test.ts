@@ -15,6 +15,22 @@ test('defaults work without feature keys or a service-role key', () => {
   assert.equal(config.supabaseUrl, 'https://example.supabase.co');
   assert.equal(config.supabaseServiceRoleKey, undefined);
   assert.throws(() => createSupabaseAdmin(config), /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.equal(config.checkoutWatcherEnabled, true);
+  assert.equal(config.demoMode, false);
+});
+
+test('checkout configuration rejects live keys and invalid flags without exposing secrets', () => {
+  for (const env of [
+    { STRIPE_SECRET_KEY: 'sk_live_private' }, { STRIPE_PUBLISHABLE_KEY: 'pk_live_private' },
+    { STRIPE_WEBHOOK_SECRET: 'bad_private' }, { DEMO_MODE: 'yes' }, { CHECKOUT_WATCHER_ENABLED: 'yes' },
+  ]) {
+    assert.throws(() => parseConfig({ ...base, ...env }), (error: unknown) =>
+      error instanceof Error && !error.message.includes('private'));
+  }
+  assert.equal(parseConfig({ ...base, CHECKOUT_WATCHER_ENABLED: 'false' }).checkoutWatcherEnabled, false);
+  assert.equal(parseConfig({ ...base, DEMO_MODE: 'true' }).demoMode, true);
+  assert.equal(parseConfig({ ...base, EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: 'pk_test_existing' }).stripePublishableKey,
+    'pk_test_existing');
 });
 
 test('invalid configuration reports variable names without leaking values', () => {

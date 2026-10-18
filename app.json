@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Snap & Score",
+    "name": "Midas",
     "slug": "snapscore",
     "version": "1.0",
     "orientation": "portrait",
@@ -15,7 +15,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Snap & Score to use the camera to identify products.",
+          "cameraPermission": "Allow Midas to use the camera to identify products.",
           "barcodeScannerEnabled": false
         }
       ],

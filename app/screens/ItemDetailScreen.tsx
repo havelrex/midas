@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import {
   ActionSheetIOS,
+  Alert,
   ActivityIndicator,
   Image,
   Linking,
@@ -14,7 +15,8 @@ import {
 import type { LibraryItem, SubScores } from '../../shared/contracts';
 import { removeItem, stopWatching } from '../features/library/api';
 import { useItem } from '../features/library/hooks';
-import { colors } from '../lib/theme';
+import { createDemoOffer, DEMO_TOOLS_ENABLED, dropDemoPrice } from '../lib/demoApi';
+import { themedStyles, useTheme } from '../lib/theme';
 import { formatPrice, VERDICT_DISPLAY, verdictReason } from '../lib/verdict';
 
 interface Props {
@@ -25,6 +27,8 @@ interface Props {
 
 // Pushed from a Library tile. Reads the saved row and stays live (e.g. watching -> purchased).
 export default function ItemDetailScreen({ id, onBack, onCheckout }: Props) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { item, loading, error, deleted, refresh } = useItem(id);
 
   let body: ReactNode;
@@ -89,6 +93,8 @@ export function ItemDetailView({
   onCheckout: () => void;
   onDeleted?: () => void;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const verdict = VERDICT_DISPLAY[item.verdict];
   const listing = item.best_listing;
   const [busy, setBusy] = useState(false);
@@ -105,6 +111,15 @@ export function ItemDetailView({
     } finally {
       setBusy(false);
     }
+  };
+
+  // Hidden: long-press the verdict line (EXPO_PUBLIC_DEMO_TOOLS=true, saved items only).
+  const openDemoTools = () => {
+    Alert.alert('Demo tools', 'Sandbox store actions for this item.', [
+      { text: 'Create sandbox offer', onPress: async () => Alert.alert('Demo', await createDemoOffer(item.id)) },
+      { text: 'Drop the price', onPress: async () => Alert.alert('Demo', await dropDemoPrice(item.id)) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const confirmStopWatching = () => {
@@ -183,7 +198,9 @@ export function ItemDetailView({
           </View>
         </View>
 
-        <Text style={styles.reason}>{verdictReason(item.verdict, item.subscores)}</Text>
+        <Text style={styles.reason} onLongPress={DEMO_TOOLS_ENABLED && item.id ? openDemoTools : undefined}>
+          {verdictReason(item.verdict, item.subscores)}
+        </Text>
         {!!item.summary && <Text style={styles.summary}>{item.summary}</Text>}
 
         <Text style={styles.sectionHeader}>Why this score</Text>
@@ -289,7 +306,7 @@ export function ItemDetailView({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.groupedBackground },
   back: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: 16, alignSelf: 'flex-start' },
   // Drawn chevron, same as LibraryScreen's.
@@ -358,7 +375,7 @@ const styles = StyleSheet.create({
   subLabel: { color: colors.label, fontSize: 17 },
   subValue: { color: colors.secondaryLabel, fontSize: 17, fontVariant: ['tabular-nums'] },
   barTrack: { height: 4, borderRadius: 2, backgroundColor: colors.fill },
-  barFill: { height: 4, borderRadius: 2, backgroundColor: '#3a3a3c' },
+  barFill: { height: 4, borderRadius: 2, backgroundColor: colors.barFill },
   subReason: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 20 },
 
   listingRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 16 },
@@ -389,9 +406,9 @@ const styles = StyleSheet.create({
     borderTopColor: colors.separator,
   },
   actionError: { color: colors.destructive, fontSize: 15, lineHeight: 20 },
-  primary: { minHeight: 52, borderRadius: 14, backgroundColor: colors.tint, alignItems: 'center', justifyContent: 'center' },
+  primary: { minHeight: 52, borderRadius: 14, backgroundColor: colors.label, alignItems: 'center', justifyContent: 'center' }, // black, as Sign In
   primaryPressed: { opacity: 0.8 },
-  primaryText: { color: '#fff', fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  primaryText: { color: colors.onPrimary, fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
   status: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -414,4 +431,4 @@ const styles = StyleSheet.create({
   retryText: { color: colors.tint, fontSize: 17, fontWeight: '600' },
   emptyTitle: { color: colors.label, fontSize: 22, fontWeight: '700', textAlign: 'center' },
   emptyBody: { color: colors.secondaryLabel, fontSize: 17, lineHeight: 22, textAlign: 'center' },
-});
+}));

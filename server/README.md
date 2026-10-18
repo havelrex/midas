@@ -1,8 +1,10 @@
-# Snap & Score API
+# Midas API
 
 Small TypeScript/Express backend for the iOS app. This foundation provides startup,
-Supabase authentication, JSON errors, and tests. Listing search, scoring,
-checkout, and price watching will be added separately. Gemini identification is
+Supabase authentication, JSON errors, and tests. Listing search and scoring
+will be added separately. Sandbox checkout and threshold autobuy are
+implemented; see [CHECKOUT.md](CHECKOUT.md) for setup, API contracts, and the
+backend-only demonstration. Gemini identification is
 available through the authenticated `POST /analyze` endpoint.
 
 ## Start locally
@@ -28,10 +30,11 @@ SUPABASE_ANON_KEY=your-project-anon-key
 
 `PORT` defaults to 4000. The URL and anon key are required. Auth uses local JWKS
 verification, falling back to Supabase's `getUser(token)` for legacy signing keys
-or unavailable JWKS. `SUPABASE_SERVICE_ROLE_KEY` is only required if future
-automation explicitly calls `createSupabaseAdmin(config)`; it is not used by `/me`.
+or unavailable JWKS. `SUPABASE_SERVICE_ROLE_KEY` is required by checkout and
+automation through `createSupabaseAdmin(config)`; it is not used by `/me`.
 The Gemini key is optional at startup but required for `/analyze`. Shopping and
-Stripe keys are not required yet. Never give server secrets
+Stripe keys are optional at startup. Checkout requires sandbox keys and the
+service-role key; incomplete configuration returns 503 for payment routes. Never give server secrets
 an `EXPO_PUBLIC_` prefix or commit `.env`.
 
 Keep the server terminal open. In another terminal:
@@ -67,8 +70,8 @@ No UI or native build change is required by this backend foundation.
 
 Add `GEMINI_API_KEY` to the repository-root `.env`, not `.env.example`.
 Optionally set `GEMINI_MODEL` (default `gemini-3.5-flash-lite`). Restart the API
-after changing these values. This implementation calls Google's REST API and
-adds no SDK dependency. Never put the Gemini key in an `EXPO_PUBLIC_` variable.
+after changing these values. Product identification calls Google's REST API
+directly; the scoring quality call uses `@google/genai`. Never put the Gemini key in an `EXPO_PUBLIC_` variable.
 
 `POST /analyze` requires a Supabase bearer token and JSON:
 
@@ -108,6 +111,32 @@ Stop the dev server before starting the compiled server on the same port.
 Ctrl+C/SIGTERM drains requests, with a ten-second shutdown deadline.
 Run `npm run typecheck` from the repository root separately to check the mobile app.
 
+## Scoring
+
+`POST /score` (bearer token required) answers 422 when the analysis has no model (the app then asks for a retake).
+Otherwise it takes the `/analyze` output and returns a `ScoreOutput` from
+`shared/contracts.ts`: score, verdict, four sub-scores (each may be `null`), `best_listing`,
+`suggested_target_price`, and `verdict_capped` (true when a Buy now was downgraded to Wait because price or
+timing data was too thin). It needs `SERPAPI_KEY`; Gemini (quality) is optional and a failure only nulls quality.
+
+- All tuning constants live in `config/weights/electronics.json`. The seeded price history for the stage item
+  is in `data/price-history/`.
+- Listings, reviews, and quality results are cached on disk in `data/cache/` (gitignored) for
+  `SCORE_CACHE_TTL_MINUTES` (default 60). Raise it and scan an item once to freeze it. `npm run cache:clear` empties it.
+- `DEMO_MODE=true` adds the sandbox merchant listing (the same store as checkout's offers) and enables the demo routes
+  (it also gates checkout's operator commands). `POST /demo/offer { item_id }` creates the item's sandbox offer at
+  the pre-drop price. `POST /demo/price-drop { item_id, target_price? }` drops the price in the item's checkout offer
+  (so the watcher charges the card), appends today's price to the history, and re-scores and updates the saved item.
+  `{ brand, model, target_price? }` without an item only changes scoring. Drops are written to
+  `data/cache/price-history/` (gitignored), never into the seed files.
+  Demo-only exception: for a featured product (`demo.featured_products` in the weights config, currently Apple
+  AirPods Max) the sandbox is priced 0.97x the cheapest real total, so it is the best listing from the first scan
+  (it still wins by price only). Only when `DEMO_MODE` is on; disclose it in the pitch.
+- Terminal checks (run from `/server`): `npm run try:reviews -- 4.7 5000`, `try:timing -- 279 259 329`,
+  `try:quality -- 60 6 3 11 1`, `try:price`, `try:score` (offline, whole pipeline with a price drop),
+  `try:live -- Sony WH-1000XM5 Headphones` (real SerpAPI and Gemini), and `try:demo` (the stage story on live data).
+- The specs behind the scores are local notes in `/context` (gitignored); `CLAUDE.md` has the team-visible rules.
+
 ## Add features
 
 - `src/index.ts`: configuration, provider wiring, listening, and shutdown.
@@ -119,9 +148,9 @@ Run `npm run typecheck` from the repository root separately to check the mobile 
   Keep network calls and scoring logic out of route handlers.
 - Follow `shared/contracts.ts` and coordinate changes with the contract owner.
   The app continues accessing its library directly through Supabase/RLS.
-- Register future Stripe webhook routes with `express.raw({ type: 'application/json' })`
-  **before** the JSON API router in `app.ts`; verify the signature before using the body.
-  There is no checkout or webhook endpoint yet.
+- `/webhooks/stripe` uses `express.raw({ type: 'application/json' })` **before**
+  the JSON API router in `app.ts`, and verifies the signature before processing.
+  Keep this ordering when adding middleware. Checkout routes live under `/checkout`.
 
 Ordinary JSON bodies are limited to 10 MB (including base64 image overhead).
 Errors use `{ "error": "message" }`: malformed JSON 400, oversized body 413,

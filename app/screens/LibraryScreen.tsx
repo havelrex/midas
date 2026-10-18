@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import type { CheckoutStatus, LibraryItem } from '../../shared/contracts';
 import { useLibrary } from '../features/library/hooks';
-import { colors, verdictColors } from '../lib/theme';
+import { verdictColors, themedStyles, useTheme } from '../lib/theme';
 import { formatPrice, VERDICT_DISPLAY } from '../lib/verdict';
 
 interface Props {
@@ -34,6 +34,8 @@ const SECTIONS: { status: CheckoutStatus; title: string }[] = [
 
 // Pushed from the camera's bottom-left button: back control, large title, Photos-style grid by status.
 export default function LibraryScreen({ onBack, onOpenItem }: Props) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { items, loading, error, refresh } = useLibrary();
   const [refreshing, setRefreshing] = useState(false);
   const { width } = useWindowDimensions();
@@ -78,8 +80,8 @@ export default function LibraryScreen({ onBack, onOpenItem }: Props) {
   } else if (items.length === 0) {
     body = (
       <View style={styles.centered}>
-        <Text style={styles.emptyTitle}>No saved items</Text>
-        <Text style={styles.emptyBody}>Swipe a score card left to keep it here.</Text>
+        <Text style={styles.emptyTitle}>Your library is empty</Text>
+        <Text style={styles.emptyBody}>Nothing is saved yet. Snap a product, then swipe its score card left to save it here.</Text>
       </View>
     );
   }
@@ -123,10 +125,12 @@ export default function LibraryScreen({ onBack, onOpenItem }: Props) {
 }
 
 function Tile({ item, width, onPress }: { item: LibraryItem; width: number; onPress: () => void }) {
+  const styles = useStyles();
   const verdict = VERDICT_DISPLAY[item.verdict];
   const watchingFor =
     item.checkout_status === 'watching' && item.target_price != null ? `Buys at ${formatPrice(item.target_price)}` : null;
   const highlight = useRef(new Animated.Value(0)).current;
+  const [photoFailed, setPhotoFailed] = useState(false);
   const prevStatus = useRef(item.checkout_status);
 
   // An auto-buy lands via Realtime (watching -> purchased): flash a green ring so it's noticed.
@@ -151,7 +155,20 @@ function Tile({ item, width, onPress }: { item: LibraryItem; width: number; onPr
       style={({ pressed }) => [{ width }, pressed && styles.pressed]}
     >
       <View>
-        <Image source={{ uri: item.thumbnail_url }} style={[styles.photo, { width, height: width }]} />
+        {item.thumbnail_url && !photoFailed ? (
+          <Image
+            source={{ uri: item.thumbnail_url }}
+            onError={() => setPhotoFailed(true)}
+            style={[styles.photo, { width, height: width }]}
+          />
+        ) : (
+          // No photo (sample items) or it failed to load: show the brand instead of an empty square.
+          <View style={[styles.photo, styles.placeholder, { width, height: width }]}>
+            <Text style={styles.placeholderText} numberOfLines={2}>
+              {item.brand || item.category || 'Item'}
+            </Text>
+          </View>
+        )}
         <View style={[styles.score, { borderColor: verdict.color }]}>
           <Text style={styles.scoreText}>{item.score}</Text>
         </View>
@@ -170,7 +187,7 @@ function Tile({ item, width, onPress }: { item: LibraryItem; width: number; onPr
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.background },
   back: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: GUTTER, alignSelf: 'flex-start' },
   // Drawn chevron; swap for the SF Symbol "chevron.left" if expo-symbols is ever added.
@@ -191,7 +208,9 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.label, fontSize: 20, fontWeight: '600', paddingHorizontal: GUTTER, marginBottom: 12 },
   sectionCount: { color: colors.secondaryLabel, fontWeight: '400', fontVariant: ['tabular-nums'] },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP, paddingHorizontal: GUTTER, rowGap: 20 },
-  photo: { borderRadius: 12, backgroundColor: colors.groupedBackground },
+  photo: { borderRadius: 12, backgroundColor: colors.fill }, // visible on the page in both themes
+  placeholder: { alignItems: 'center', justifyContent: 'center', padding: 12 },
+  placeholderText: { color: colors.secondaryLabel, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   // The score ring is the app's mark: same verdict color as the score card, smaller.
   score: {
     position: 'absolute',
@@ -218,4 +237,4 @@ const styles = StyleSheet.create({
   retry: { marginTop: 4, minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
   retryText: { color: colors.tint, fontSize: 17, fontWeight: '600' },
   pressed: { opacity: 0.6 },
-});
+}));

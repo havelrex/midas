@@ -3,6 +3,7 @@ import { randomUUID } from 'expo-crypto';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { AnalysisOutput, LibraryItem, ScoreOutput } from '../../../shared/contracts';
 import { supabase } from '../../lib/supabase';
+import { apiFetch } from '../../lib/apiFetch';
 
 const BUCKET = 'thumbnails';
 const THUMB_WIDTH = 400;
@@ -19,6 +20,7 @@ export async function saveItem({ photoUri, analysis, score }: SaveItemInput): Pr
   const { data: auth } = await supabase.auth.getSession();
   const userId = auth.session?.user.id;
   if (!userId) throw new Error('not signed in');
+  if (!score.best_listing) throw new Error('no listing to save'); // items.best_listing is NOT NULL
 
   const id = randomUUID();
   const path = `${userId}/${id}.jpg`;
@@ -72,13 +74,9 @@ export async function getItem(id: string): Promise<LibraryItem | null> {
   return data as LibraryItem | null;
 }
 
-// Cancels buy-at-target: the automation only looks at 'watching' rows.
+// The backend serializes cancellation with the watcher's purchase claim.
 export async function stopWatching(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('items')
-    .update({ checkout_status: 'none', target_price: null })
-    .eq('id', id);
-  if (error) throw error;
+  await apiFetch(`/checkout/items/${id}/autobuy`, { method: 'DELETE' });
 }
 
 export async function removeItem(item: Pick<LibraryItem, 'id' | 'user_id'>): Promise<void> {

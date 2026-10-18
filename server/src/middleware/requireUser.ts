@@ -13,7 +13,7 @@ declare global {
 
 export type VerifyToken = (token: string) => Promise<string | null>;
 
-export function createUserVerifier(config: Config): VerifyToken {
+export function createUserVerifier(config: Pick<Config, 'supabaseUrl' | 'supabaseAnonKey'> & Partial<Config>): VerifyToken {
   const issuer = `${config.supabaseUrl}/auth/v1`;
   const jwks = createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks.json`));
   const authClient = createClient(config.supabaseUrl, config.supabaseAnonKey, {

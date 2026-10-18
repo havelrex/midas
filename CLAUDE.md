@@ -21,8 +21,13 @@ leftover references when you touch those files.)
 - Review analysis: Gemini API (text) on review text for the quality sub-score. Owner: Havel.
   Separate prompt from image analysis; same server-side key. Use `@google/genai`, the same
   model as Caleb's call (currently `gemini-2.5-flash`), `temperature: 0`, and `responseSchema`.
-- Listings and reviews: SerpAPI (Google Shopping + `google_immersive_product` detail call) and eBay Browse API.
-  Fallback for thin review text: SerpAPI Walmart or Amazon review engines.
+- Listings and reviews: SerpAPI (Google Shopping + `google_immersive_product` detail call). Search brand + model +
+  category (e.g. "Sony WH-1000XM5 Headphones"); brand + model alone returns junk marketplace results.
+  eBay Browse API is deferred (access takes a business day), so SerpAPI is the only listings source for now.
+  The detail call returns about 6 owner reviews and the star breakdown, but no expert snippets. Below 15 reviews,
+  top up with Walmart's reviews through SerpAPI (`engine=walmart` to find the product, then `walmart_product_reviews`
+  with `sort=rating-asc` and `rating-desc`, about 20 each). SerpAPI's Amazon review engine and Google's product
+  reviews are not usable on our plan.
 - Checkout: Stripe test mode with a fake merchant we add. Saved card, charged off-session with a
   PaymentIntent for buy-at-target.
 - Push: Expo Notifications (APNs). Push only works on a real iPhone.
@@ -72,12 +77,15 @@ Mac only (Havel's build machine):
 - /ios                native Xcode project (generated; edit through app.json/config plugins when possible)
 - /app/screens        signin, camera, item-detail, library, checkout, profile
 - /app/components     ScoreCard (swipe + tap), SubscoreRow
-- /server/analysis    Gemini vision client (Caleb)
-- /server/listings    SerpAPI + eBay clients, normalized output, listing cleaning, best listing, review fetch
-- /server/scoring     four sub-scores, quality Gemini text call, weights, verdict, reason strings
+- /server/src/analysis    Gemini vision client (Caleb)
+- /server/src/listings    SerpAPI client (eBay deferred), normalized output, listing cleaning, disk-cached wrapper
+- /server/src/scoring     four sub-scores, quality Gemini text call, composer, demo sandbox, orchestrator, reason strings
+- /server/src/routes      /analyze, /score, /demo/price-drop (DEMO_MODE only)
 - /server/config/weights/   electronics.json, default.json (weights, tuning constants, sale events, trusted retailers)
 - /server/data/price-history/   seeded 90-day history, one JSON file per stage item
-- /server/checkout    Stripe client, buy-now, buy-at-target automation
+- /server/data/cache/   scan cache (gitignored)
+- /server/scripts     `npm run try:*` terminal checks for each sub-score and the demo story
+- /server/src/checkout    Stripe client, buy-now, buy-at-target automation (Pedro, not built yet)
 - /context            LOCAL ONLY, must be in .gitignore (never commit it). The scoring spec lives here, one
                       file per sub-score: quality-subscore.md, price-subscore.md, reviews-subscore.md, timing-subscore.md
 
@@ -115,6 +123,8 @@ Score output (Havel -> everyone):
 }
 ```
 - A sub-score that can't be computed is `null` (see "Missing data" below). UI must handle null sub-scores.
+- `best_listing` is null when no store sells the item new. The card then says so and blocks saving, because
+  `items.best_listing` is NOT NULL. A null listing must never reach the database.
 - `suggested_target_price` is the 90-day low when the verdict is `wait`, otherwise null.
   The checkout screen prefills `target_price` with it; the user can change it.
 
@@ -127,10 +137,14 @@ checkout_status ("none" | "watching" | "purchased")`
 - After sign in, the app opens straight to the camera. Layout mirrors Apple Camera.
 - Bottom left: library. Bottom right (where flip-camera usually is): profile. Bottom center: shutter.
 - After a snap, a score card appears in the center.
-  - Swipe left/down = save to library (toward the library button).
-  - Swipe right/up = delete, back to camera. Deleted items are never written to the DB.
+  - Swipe left = save to library (toward the library button).
+  - Swipe right = delete, back to camera. Deleted items are never written to the DB.
+  - Up/down drags scroll the card (it can be taller than the screen with the breakdown open); they never save or delete.
   - Tap = expand to full item detail with sub-score reasons and checkout.
 - No confirm/correct step for identification. Wrong ID = user deletes and retakes.
+- If identification returns no model, the item is never scored or saved: the card says the exact model could not be
+  read and the user must retake the photo (`no_model` status; `POST /score` also answers 422). A featured demo
+  product with a recognizable name but no model gets its model filled in first (see Demo mode).
 - Show the real star rating and review count. Never show adjusted ratings or the seller risk penalty.
 
 ## Scoring rules
@@ -147,11 +161,26 @@ checkout_status ("none" | "watching" | "purchased")`
   The trusted retailer list is about reliability only.
 - Clamp every sub-score to 0 to 100.
 
-### Missing data
+### Missing and thin data
 - Fewer listings, reviews, or history than the spec wants: still score, set `data_quality: "limited"`,
-  use the limited-data reason string.
-- No usable data at all: set that sub-score to null and renormalize weights within its axis
-  (quality missing -> reviews carries the item axis, etc.).
+  use the limited-data reason string. `limited` is a label; it does not change weights by itself.
+- Thin data is handled continuously, never with a hard cutoff, and differently per sub-score:
+  - Reviews: the Bayesian shrink already covers it. Do not downweight it again.
+  - Quality: shrink the failure and praise rates toward category priors with `n / (n + trust_halfway)`.
+    Weight stays fixed. Expert cons are a count, not a rate, so they are not shrunk.
+  - Price and timing: reduce the weight. Shrinking toward 50 would claim "normal price", which we don't know.
+    `confidence.price = min(1, cleanedListings / price_full_trust_listings)`,
+    `confidence.timing = min(1, historyDays / timing_full_trust_days)`.
+    Within an axis each sub-score's share is base weight x confidence, so a thin price lets timing carry more.
+    The axis keeps its full weight if any member has confidence 1, and shrinks with its best member's
+    confidence otherwise (both deal sub-scores thin means the item axis counts for more). If a whole axis
+    has confidence 0, renormalize across the remaining sub-scores.
+- No usable data at all: set that sub-score to null. This is confidence 0, so the same renormalization
+  applies (quality missing -> reviews carries the item axis, etc.).
+- Verdict cap: `buy_now` claims the price is at or near its low, so it never fires when price or timing
+  confidence is below `verdict.buy_now_min_confidence`. Fall back to `wait` and mark the result limited.
+- Confidence thresholds, quality priors, and the verdict floor live in `electronics.json`, with the other
+  tuning constants.
 - Never block the score card on a slow or failed call. The quality Gemini call failing or timing out
   is treated as no review text.
 
@@ -161,17 +190,40 @@ checkout_status ("none" | "watching" | "purchased")`
 - Gemini only counts (`failure_mentions`, `early_failure_mentions`, `durability_praise`,
   `expert_reliability_cons`, `evidence_quote`). It never rates the product.
 - Set `reviews_read` in code, not from the model.
-- Prioritize 1 to 3 star reviews; target 30 to 80. Under ~15 is limited.
+- Prioritize 1 to 3 star reviews; target 30 to 80. Under ~15 is limited. Google's detail call returns about 6, so
+  Walmart's lowest- and highest-rated pages are added (about 46 reviews total). A failed top-up falls back to what
+  Google gave.
+- That sample is skewed toward failures, so the star breakdown carries the volume: the failure rate is
+  (real share of 1-2 star ratings) x (share of the low-rated reviews we read that report a failure), and praise is
+  (real share of 3-5 star ratings) x (share of the higher-rated reviews that praise durability), each shrunk toward
+  a prior when few reviews were read. Complaints are 1 and 2 stars only; 3 stars is neutral (some catalog cards
+  are mostly 3-star). Both shares are set in code. Without a breakdown, fall back to shrinking the raw rates.
+- Shrink failure and praise rates toward category priors by `n / (n + trust_halfway)` before scoring, so
+  thin review data lands near a typical score instead of a random extreme.
 - Cache results by `brand + model`. The stage item must never change score between runs.
+- The cache is on disk (`server/data/cache/`, gitignored), so it survives restarts. It holds the SerpAPI search,
+  the detail call, and the quality result. Keys ignore case, spacing, and punctuation, so `WH-1000XM5` and
+  `WH1000XM5` share one entry. Entries last `SCORE_CACHE_TTL_MINUTES` (default 60); raise it and scan the item
+  once before a demo to freeze it. `npm run cache:clear` (in /server) empties it. Failures are never cached.
+  This is a normal cache, not a demo path: `DEMO_MODE` still controls only the sandbox listing and the price drop.
 - Start the Gemini call in parallel with price and timing as soon as the detail call returns.
 - Never claim a lifespan in a reason string.
 
 ### Price (spec: context/price-subscore.md)
-- Fetch Google Shopping and eBay (new only) in parallel, plus the sandbox listing in demo mode.
+- Fetch Google Shopping, plus the sandbox listing in demo mode. Used items are detected from SerpAPI's
+  `second_hand_condition`. Delivery text sets shipping; unknown shipping counts as free.
 - Clean before anything else: drop listings without the model number in the title, non-new, below
-  0.5x median, or above 2x median. Under 3 survivors is limited.
+  0.7x median, or above 2x median. Under 3 survivors is limited. The low bound was 0.5x, but a live run let a
+  $150 scam site through against a $296 median, so it was raised to 0.7x. The sandbox listing is exempt from
+  these bounds because it is our own controlled listing.
 - Pick `best_listing` by effective price (price + shipping + seller risk penalty). The penalty is for
   ranking only; the user sees and pays the real price.
+- Only a vouched-for seller can be `best_listing`: a trusted retailer (exact name match, so third-party
+  sellers on a marketplace do not inherit trust) or a known rating of 4 stars or more. Unknown merchants
+  still count toward the median. The sandbox store is always eligible but wins only by being cheapest.
+  If no seller is vouched for, fall back to the cheapest overall, set `data_quality: "limited"`, and cap
+  price confidence at 0.5 so `buy_now` cannot fire. Demo mode only adds the sandbox store next to a
+  vouched-for real store.
 - Reference price = median of cleaned price + shipping, excluding `source: "sandbox"`.
 - Tax is ignored.
 - Used/refurbished are out of the score for the hackathon.
@@ -196,17 +248,37 @@ checkout_status ("none" | "watching" | "purchased")`
   send a push notification with the item and price.
 
 ## Demo mode
-One flag, `DEMO_MODE`, controls exactly two things and nothing else:
+One flag, `DEMO_MODE`, controls the demo-only behavior and nothing in normal scoring:
 1. Whether the sandbox merchant listing (`source: "sandbox"`) is added to listings.
-2. The manual price-drop trigger.
+2. The manual price-drop trigger (`POST /demo/offer` and `POST /demo/price-drop`).
+3. Checkout's operator-only commands (`npm run checkout:demo -- offer|price|demo`).
 
 How the demo works:
-- The sandbox merchant has a believable store name and starts priced slightly above the best real price,
-  so a real store wins and the stage item lands on Wait.
+- The sandbox merchant is the same store as checkout's (`MERCHANT` in `server/src/checkout/model.ts`, currently
+  "Cedar Electronics"), so the card's best listing and the checkout quote name one store. It starts priced slightly
+  above the best real price, so a real store wins and the stage item lands on Wait (non-featured items). It is only
+  added next to a trusted real store.
+- Demo-only exception for featured products (`demo.featured_products` in the weights config; currently Apple
+  AirPods Max, matched by punctuation-proof brand + model): the sandbox store is the best listing from the first scan.
+  It still wins only by price: it is priced `sandbox_price_ratio` (0.97) times the cheapest cleaned real total, so
+  ordinary ranking picks it, with no special case in scoring or ranking code. It is added whenever any cleaned real
+  listing exists (no vouched store needed). Gated by `DEMO_MODE` and the featured match; normal items are unchanged.
+  This deliberately departs from "starts above the best real price" and must be disclosed in the pitch.
+  `/analyze` and `/score` also fill a missing model from a featured alias in the product name ("AirPods Max"),
+  and `/score` returns 422 ("Retake the photo...") when no model can be read.
 - The price drop lowers the sandbox price below the user's target and below every real store.
   It becomes `best_listing` only by having the lowest price. Scoring code never forces it to win.
-- The dropped price is appended to the item's seeded history as today's entry, so reopening the item
-  shows timing at its 90-day low.
+- The dropped price is appended to the item's history as today's entry, so reopening the item shows timing at
+  its 90-day low. Drops are written to a gitignored overlay (`server/data/cache/price-history/`), never into the
+  committed seed; `npm run cache:clear` resets them.
+- One action does it all. `POST /demo/price-drop {item_id}` computes the price (below the watch threshold and every
+  real store), writes it to the item's checkout offer (which the watcher polls to charge the card), appends the
+  history, and re-scores and updates the saved item row so the library and detail screen update live.
+  `POST /demo/offer {item_id}` first creates the offer at the pre-drop price so checkout is eligible. Without
+  `item_id`, the drop only changes scoring (terminal checks).
+- On stage the operator uses a hidden control: with `EXPO_PUBLIC_DEMO_TOOLS=true` (app) and `DEMO_MODE=true`
+  (server), long-press the verdict line on a saved item's detail screen to "Create sandbox offer" (before setting
+  the watch) or "Drop the price". It calls the routes through `apiFetch`, so it uses the user's own login.
 - Sandbox listings never count toward the price reference median.
 - Before demo day, tune seeded history and constants so the stage item is Wait before the drop and
   buy-now territory after it.
