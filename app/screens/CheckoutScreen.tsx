@@ -273,7 +273,11 @@ export default function CheckoutScreen({ itemId, onBack, backLabel = 'Back' }: P
         >
           {busy ? <ActivityIndicator color="#fff" /> : (
             <Text style={styles.primaryText}>
-              {purchased ? 'Purchased' : quote ? `Buy now · ${money(quote.totalCents)}` : 'Buy now'}
+              {/* A disabled button always says why. */}
+              {purchased ? 'Purchased'
+                : watching && state?.watch ? `Watching for ${money(state.watch.thresholdCents)}`
+                : loaded && !state.eligible ? 'Not available'
+                : quote ? `Buy now · ${money(quote.totalCents)}` : 'Buy now'}
             </Text>
           )}
         </Pressable>

@@ -142,18 +142,22 @@ export default function ScoreCard({
           </View>
         </View>
 
-        {!!analysis.summary && <Text style={styles.summary}>{analysis.summary}</Text>}
-        {!analysis.model && <Text style={styles.summary}>Exact model unknown. Retake with the model label visible.</Text>}
+        {/* What it is, then why the verdict: read as one block. */}
+        <View style={styles.textGroup}>
+          {!!analysis.summary && <Text style={styles.summary}>{analysis.summary}</Text>}
+          {!analysis.model && <Text style={styles.summary}>Exact model unknown. Retake with the model label visible.</Text>}
+          {status === 'scoring' && (
+            <View style={styles.row}>
+              <ActivityIndicator color={colors.secondaryLabel} />
+              <Text style={styles.secondary}>Scoring…</Text>
+            </View>
+          )}
+          {status === 'ready' && score && <Text style={styles.reason}>{verdictReason(score.verdict, score.subscores)}</Text>}
+        </View>
 
-        {status === 'scoring' && (
-          <View style={styles.row}>
-            <ActivityIndicator color={colors.secondaryLabel} />
-            <Text style={styles.secondary}>Scoring…</Text>
-          </View>
-        )}
-        {status === 'ready' && score && <Text style={styles.reason}>{verdictReason(score.verdict, score.subscores)}</Text>}
-
-        {canSave && score?.best_listing && (
+        {status === 'ready' && score && (
+        <View style={styles.actionGroup}>
+        {canSave && score.best_listing && (
           <Pressable
             onPress={onCheckout}
             disabled={checkingOut}
@@ -170,8 +174,6 @@ export default function ScoreCard({
             )}
           </Pressable>
         )}
-
-        {status === 'ready' && score && (
           <Pressable
             onPress={() => setOpen((o) => !o)}
             accessibilityRole="button"
@@ -181,6 +183,7 @@ export default function ScoreCard({
             <Text style={styles.toggleText}>{open ? 'Hide breakdown' : 'Show breakdown'}</Text>
             <View style={[styles.chevron, open && styles.chevronOpen]} />
           </Pressable>
+        </View>
         )}
         {open && score && (
           <View style={styles.breakdown}>
@@ -230,7 +233,19 @@ export default function ScoreCard({
           </View>
         )}
 
-        <Text style={styles.hint}>{canSave ? 'Tap for full details  ·  ← Save  ·  Delete →' : 'Delete →'}</Text>
+        {/* Swipe directions, each on the side you swipe toward. Decorative: VoiceOver gets the card's actions instead. */}
+        <View style={styles.swipeHints} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {canSave ? (
+            <View style={styles.swipeHint}>
+              <View style={[styles.hintChevron, styles.hintChevronLeft]} />
+              <Text style={styles.hint}>Save</Text>
+            </View>
+          ) : <View />}
+          <View style={styles.swipeHint}>
+            <Text style={styles.hint}>Delete</Text>
+            <View style={[styles.hintChevron, styles.hintChevronRight]} />
+          </View>
+        </View>
       </Pressable>
       </ScrollView>
     </Animated.View>
@@ -256,24 +271,33 @@ const styles = StyleSheet.create({
   // Shrinks to the card's max height so it can scroll; clips to the card's corners here, not on the
   // card itself, because overflow: hidden on the card would remove its shadow on iOS.
   scroll: { flexGrow: 0, flexShrink: 1, borderRadius: 34, overflow: 'hidden' },
-  body: { padding: 18, gap: 12 },
+  // Tight inside a group, wider between groups (header / text / actions / breakdown / hints).
+  body: { padding: 18, paddingBottom: 14, gap: 16 },
+  textGroup: { gap: 6 },
+  actionGroup: { gap: 8 },
   pressed: { opacity: 0.7 },
-  header: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  header: { flexDirection: 'row', gap: 16, alignItems: 'center', paddingLeft: 4, paddingBottom: 4 }, // room for the ring's overhang
   photo: { width: 92, height: 92, borderRadius: 22, backgroundColor: colors.groupedBackground },
   // Same score ring as the Library tile and the detail header.
+  // The score leads the card (verdict first): the Library tile's ring, scaled up and set on the
+  // photo's corner so it reads before anything else. White edge keeps it off the photo.
   badge: {
     position: 'absolute',
-    left: 6,
-    bottom: 6,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 3,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    left: -8,
+    bottom: -8,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 4,
+    backgroundColor: '#1c1c1e',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
-  badgeText: { color: '#fff', fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  badgeText: { color: '#fff', fontSize: 23, fontWeight: '800', letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
   titles: { flex: 1, gap: 4, alignItems: 'flex-start' },
   subtitle: { color: colors.secondaryLabel, fontSize: 13 },
   name: { color: colors.label, fontSize: 20, fontWeight: '700', lineHeight: 24 },
@@ -339,7 +363,13 @@ const styles = StyleSheet.create({
   },
   priceLabel: { flexShrink: 1, color: colors.secondaryLabel, fontSize: 15 },
   priceValue: { color: colors.label, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  hint: { color: colors.secondaryLabel, fontSize: 13, textAlign: 'center' },
+  swipeHints: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 2 },
+  swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  hint: { color: colors.secondaryLabel, fontSize: 13, fontWeight: '500' },
+  // Drawn chevrons, same construction as the screens' back buttons, scaled to the hint text.
+  hintChevron: { width: 7, height: 7, borderColor: colors.secondaryLabel, borderLeftWidth: 1.75, borderBottomWidth: 1.75 },
+  hintChevronLeft: { transform: [{ rotate: '45deg' }], marginLeft: 3 },
+  hintChevronRight: { transform: [{ rotate: '-135deg' }], marginRight: 3 },
 });
 
 const SUBSCORES = [
