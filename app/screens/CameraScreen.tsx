@@ -17,6 +17,8 @@ export default function CameraScreen() {
   const camera = useRef<CameraView>(null);
   const captureInProgress = useRef(false);
   const session = useRef(0);
+  const mounted = useRef(false);
+  const appState = useRef(AppState.currentState);
   const [permission, requestPermission, refreshPermission] = useCameraPermissions();
   const [active, setActive] = useState(AppState.currentState === 'active');
   const [ready, setReady] = useState(false);
@@ -27,15 +29,26 @@ export default function CameraScreen() {
   const [cameraKey, setCameraKey] = useState(0);
 
   useEffect(() => {
+    mounted.current = true;
     const subscription = AppState.addEventListener('change', (state) => {
+      // Duplicate active events must not disable an already-ready preview.
+      if (state === appState.current) return;
+      appState.current = state;
       session.current += 1;
+      captureInProgress.current = false;
+      setCapturing(false);
       setActive(state === 'active');
       setReady(false);
       if (state === 'active') {
-        void refreshPermission().catch(() => setError('Unable to check camera permission. Try again.'));
+        // Force a fresh native preview even if inactive/active updates are batched.
+        setCameraKey((key) => key + 1);
+        void refreshPermission().catch(() => {
+          if (mounted.current) setError('Unable to check camera permission. Try again.');
+        });
       }
     });
     return () => {
+      mounted.current = false;
       session.current += 1;
       subscription.remove();
     };
@@ -47,12 +60,12 @@ export default function CameraScreen() {
       if (permission?.canAskAgain) await requestPermission();
       else await Linking.openSettings();
     } catch {
-      setError('Unable to open camera permissions. Please try again.');
+      if (mounted.current) setError('Unable to open camera permissions. Please try again.');
     }
   }
 
   async function takePhoto() {
-    if (!camera.current || !ready || !active || captureInProgress.current) return;
+    if (!camera.current || !ready || appState.current !== 'active' || !permission?.granted || cameraError || captureInProgress.current) return;
     captureInProgress.current = true;
     setCapturing(true);
     setError(null);
@@ -68,8 +81,11 @@ export default function CameraScreen() {
         setError('Could not take the photo. Please try again.');
       }
     } finally {
-      captureInProgress.current = false;
-      setCapturing(false);
+      // An old capture must not unlock or overwrite a newer camera session.
+      if (mounted.current && currentSession === session.current) {
+        captureInProgress.current = false;
+        setCapturing(false);
+      }
     }
   }
 
