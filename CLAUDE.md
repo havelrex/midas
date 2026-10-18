@@ -137,8 +137,9 @@ checkout_status ("none" | "watching" | "purchased")`
 - After sign in, the app opens straight to the camera. Layout mirrors Apple Camera.
 - Bottom left: library. Bottom right (where flip-camera usually is): profile. Bottom center: shutter.
 - After a snap, a score card appears in the center.
-  - Swipe left/down = save to library (toward the library button).
-  - Swipe right/up = delete, back to camera. Deleted items are never written to the DB.
+  - Swipe left = save to library (toward the library button).
+  - Swipe right = delete, back to camera. Deleted items are never written to the DB.
+  - Up/down drags scroll the card (it can be taller than the screen with the breakdown open); they never save or delete.
   - Tap = expand to full item detail with sub-score reasons and checkout.
 - No confirm/correct step for identification. Wrong ID = user deletes and retakes.
 - If identification returns no model, the item is never scored or saved: the card says the exact model could not be

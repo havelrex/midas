@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../features/auth/AuthProvider';
-import { colors } from '../lib/theme';
+import { themedStyles, useTheme } from '../lib/theme';
 
 // Supabase error text is written for developers; say what went wrong and what to do.
 function friendlyError(e: unknown): string {
@@ -27,6 +27,8 @@ function friendlyError(e: unknown): string {
 
 // iOS-native layout: large title up top, fields as one grouped form, the action near the thumb.
 export default function SignInScreen() {
+  const styles = useStyles();
+  const { colors, mode } = useTheme();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -71,6 +73,7 @@ export default function SignInScreen() {
                 Email
               </Text>
               <TextInput
+                keyboardAppearance={mode}
                 style={styles.input}
                 accessibilityLabelledBy="email-label"
                 placeholder="name@example.com"
@@ -92,6 +95,7 @@ export default function SignInScreen() {
                 Password
               </Text>
               <TextInput
+                keyboardAppearance={mode}
                 ref={passwordRef}
                 style={styles.input}
                 accessibilityLabelledBy="password-label"
@@ -126,7 +130,7 @@ export default function SignInScreen() {
             accessibilityState={{ disabled: !canSubmit, busy: submitting }}
           >
             {submitting ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.onPrimary} />
             ) : (
               <Text style={[styles.buttonText, !canSubmit && styles.buttonTextDisabled]}>Sign in</Text>
             )}
@@ -137,7 +141,7 @@ export default function SignInScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   safe: { flex: 1, backgroundColor: colors.groupedBackground },
   container: { flex: 1, justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 16 },
   header: { gap: 8, alignItems: 'center' },
@@ -160,6 +164,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { backgroundColor: colors.fill },
   buttonPressed: { opacity: 0.8 },
-  buttonText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  buttonText: { color: colors.onPrimary, fontSize: 17, fontWeight: '600' },
   buttonTextDisabled: { color: colors.secondaryLabel },
-});
+}));
