@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import type { CheckoutStatus, LibraryItem } from '../../shared/contracts';
 import { useLibrary } from '../features/library/hooks';
-import { colors } from '../lib/theme';
+import { colors, verdictColors } from '../lib/theme';
 import { formatPrice, VERDICT_DISPLAY } from '../lib/verdict';
 
 interface Props {
@@ -64,7 +64,7 @@ export default function LibraryScreen({ onBack, onOpenItem }: Props) {
 
   let body = null;
   if (loading) {
-    body = <ActivityIndicator style={styles.centered} color={colors.label} />;
+    body = <ActivityIndicator style={styles.centered} color={colors.secondaryLabel} />;
   } else if (error && items.length === 0) {
     body = (
       <View style={styles.centered}>
@@ -97,7 +97,7 @@ export default function LibraryScreen({ onBack, onOpenItem }: Props) {
     <SafeAreaView style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.label} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.secondaryLabel} />}
       >
         {header}
         {SECTIONS.map(({ status, title }) => {
@@ -205,17 +205,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scoreText: { color: colors.label, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  boughtRing: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 12, borderWidth: 3, borderColor: colors.good },
+  scoreText: { color: '#fff', fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] }, // on the dark scrim
+  boughtRing: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 12, borderWidth: 3, borderColor: verdictColors.good },
   name: { color: colors.label, fontSize: 15, fontWeight: '600', lineHeight: 20, marginTop: 8 },
   meta: { marginTop: 6, gap: 4, alignItems: 'flex-start' },
   pill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
   pillText: { color: '#000', fontSize: 13, fontWeight: '700' },
-  watching: { color: colors.tintOnFill, fontSize: 13, fontVariant: ['tabular-nums'] },
+  watching: { color: colors.tint, fontSize: 13, fontVariant: ['tabular-nums'] },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8 },
   emptyTitle: { color: colors.label, fontSize: 22, fontWeight: '700', textAlign: 'center' },
   emptyBody: { color: colors.secondaryLabel, fontSize: 17, lineHeight: 22, textAlign: 'center' },
-  retry: { marginTop: 12, minHeight: 44, paddingHorizontal: 20, borderRadius: 12, backgroundColor: colors.secondaryGroupedBackground, justifyContent: 'center' },
-  retryText: { color: colors.tintOnFill, fontSize: 17, fontWeight: '600' },
+  retry: { marginTop: 4, minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
+  retryText: { color: colors.tint, fontSize: 17, fontWeight: '600' },
   pressed: { opacity: 0.6 },
 });

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../lib/theme';
+import { cameraColors } from '../lib/theme';
 
 interface Props {
   message: string; // e.g. "Saved to Library", "Deleted"
@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.secondaryGroupedBackground,
+    backgroundColor: cameraColors.surface, // shown over the camera, so it stays dark
     borderRadius: 14,
     paddingLeft: 16,
     paddingRight: 4,
@@ -52,8 +52,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 12,
   },
-  message: { color: colors.label, fontSize: 15, flexShrink: 1 },
+  message: { color: cameraColors.label, fontSize: 15, flexShrink: 1 },
   undo: { minHeight: 44, minWidth: 64, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   pressed: { opacity: 0.5 },
-  undoText: { color: colors.tintOnFill, fontSize: 17, fontWeight: '600' },
+  undoText: { color: cameraColors.tint, fontSize: 17, fontWeight: '600' },
 });

@@ -126,7 +126,7 @@ export default function SignInScreen() {
             accessibilityState={{ disabled: !canSubmit, busy: submitting }}
           >
             {submitting ? (
-              <ActivityIndicator color="#000" />
+              <ActivityIndicator color="#fff" />
             ) : (
               <Text style={[styles.buttonText, !canSubmit && styles.buttonTextDisabled]}>Sign in</Text>
             )}
@@ -138,14 +138,14 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1, backgroundColor: colors.groupedBackground },
   container: { flex: 1, justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 16 },
   header: { gap: 8, alignItems: 'center' },
   title: { color: colors.label, fontSize: 40, fontWeight: '800', letterSpacing: -0.5, textAlign: 'center' },
-  amp: { color: colors.good },
+  amp: { color: colors.goodText },
   subtitle: { color: colors.secondaryLabel, fontSize: 17, lineHeight: 22, textAlign: 'center' },
   form: { gap: 16 },
-  group: { backgroundColor: colors.groupedBackground, borderRadius: 12 },
+  group: { backgroundColor: colors.cell, borderRadius: 12 },
   row: { flexDirection: 'row', alignItems: 'center', minHeight: 50, paddingHorizontal: 16 },
   separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.separator, marginLeft: 16 },
   label: { color: colors.label, fontSize: 17, width: 92 },
@@ -158,8 +158,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonDisabled: { backgroundColor: colors.secondaryGroupedBackground },
+  buttonDisabled: { backgroundColor: colors.fill },
   buttonPressed: { opacity: 0.8 },
-  buttonText: { color: '#000', fontSize: 17, fontWeight: '600' },
+  buttonText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   buttonTextDisabled: { color: colors.secondaryLabel },
 });
