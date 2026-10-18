@@ -42,3 +42,6 @@ yarn-error.*
 # Editor
 .vscode/
 .idea/
+
+# local scoring specs (not committed)
+/context
