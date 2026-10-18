@@ -127,6 +127,7 @@ function Tile({ item, width, onPress }: { item: LibraryItem; width: number; onPr
   const watchingFor =
     item.checkout_status === 'watching' && item.target_price != null ? `Buys at ${formatPrice(item.target_price)}` : null;
   const highlight = useRef(new Animated.Value(0)).current;
+  const [photoFailed, setPhotoFailed] = useState(false);
   const prevStatus = useRef(item.checkout_status);
 
   // An auto-buy lands via Realtime (watching -> purchased): flash a green ring so it's noticed.
@@ -151,7 +152,20 @@ function Tile({ item, width, onPress }: { item: LibraryItem; width: number; onPr
       style={({ pressed }) => [{ width }, pressed && styles.pressed]}
     >
       <View>
-        <Image source={{ uri: item.thumbnail_url }} style={[styles.photo, { width, height: width }]} />
+        {item.thumbnail_url && !photoFailed ? (
+          <Image
+            source={{ uri: item.thumbnail_url }}
+            onError={() => setPhotoFailed(true)}
+            style={[styles.photo, { width, height: width }]}
+          />
+        ) : (
+          // No photo (sample items) or it failed to load: show the brand instead of an empty square.
+          <View style={[styles.photo, styles.placeholder, { width, height: width }]}>
+            <Text style={styles.placeholderText} numberOfLines={2}>
+              {item.brand || item.category || 'Item'}
+            </Text>
+          </View>
+        )}
         <View style={[styles.score, { borderColor: verdict.color }]}>
           <Text style={styles.scoreText}>{item.score}</Text>
         </View>
@@ -192,6 +206,8 @@ const styles = StyleSheet.create({
   sectionCount: { color: colors.secondaryLabel, fontWeight: '400', fontVariant: ['tabular-nums'] },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP, paddingHorizontal: GUTTER, rowGap: 20 },
   photo: { borderRadius: 12, backgroundColor: colors.groupedBackground },
+  placeholder: { alignItems: 'center', justifyContent: 'center', padding: 12 },
+  placeholderText: { color: colors.secondaryLabel, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   // The score ring is the app's mark: same verdict color as the score card, smaller.
   score: {
     position: 'absolute',
