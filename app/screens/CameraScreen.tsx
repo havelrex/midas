@@ -227,9 +227,8 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="light" />
+      {/* Top bar stays wordless, like Apple Camera. Only the test-mode tools (off by default) show here. */}
       <View style={styles.header}>
-        <Text style={styles.title}>Midas</Text>
-        <Text style={styles.hint}>{photoUri ? 'Photo captured' : 'Center one product in the frame'}</Text>
         {TEST_TOOLS_ENABLED && <>
           <Text style={styles.testLabel}>TEST MODE - shared sample item available</Text>
           <Pressable accessibilityRole="button" style={styles.button} onPress={() => {
