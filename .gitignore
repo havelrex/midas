@@ -45,3 +45,6 @@ yarn-error.*
 
 # local scoring specs (not committed)
 /context
+
+# scan cache (listings, reviews, quality results)
+server/data/cache/
