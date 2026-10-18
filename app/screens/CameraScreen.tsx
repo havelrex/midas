@@ -139,7 +139,7 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
     setAnalysis(null);
     const currentSession = session.current;
     try {
-      const photo = await camera.current.takePictureAsync({ quality: 0.7 });
+      const photo = await camera.current.takePictureAsync({ quality: 0.9 });
       if (currentSession !== session.current) return;
       if (!photo?.uri) throw new Error('No photo returned');
       setReady(false);
@@ -165,8 +165,15 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
     setAnalyzing(true);
     const timeout = setTimeout(() => controller.abort(), 40_000);
     try {
-      const photo = await manipulateAsync(uri, [{ resize: { width: 1280 } }], {
-        compress: 0.7, format: SaveFormat.JPEG, base64: true,
+      const size = await new Promise<{ width: number; height: number }>((resolve, reject) =>
+        Image.getSize(uri, (width, height) => resolve({ width, height }), reject));
+      if (controller.signal.aborted || currentSession !== session.current) return;
+      // Preserve ports, seams and logos without upscaling small images or making
+      // portrait uploads much larger than landscape uploads.
+      const resize = Math.max(size.width, size.height) > 1600
+        ? [{ resize: size.width >= size.height ? { width: 1600 } : { height: 1600 } }] : [];
+      const photo = await manipulateAsync(uri, resize, {
+        compress: 0.85, format: SaveFormat.JPEG, base64: true,
       });
       if (controller.signal.aborted || currentSession !== session.current) return;
       const result = await apiFetch<AnalysisOutput>('/analyze', {

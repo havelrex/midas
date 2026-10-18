@@ -36,7 +36,8 @@ try {
   })() : undefined;
   const app = createApp({ verifyToken: createUserVerifier(config),
     checkout,
-    analyze: createGeminiAnalyzer({ apiKey: config.geminiApiKey, model: config.geminiModel }),
+    analyze: createGeminiAnalyzer({ apiKey: config.geminiApiKey, model: config.geminiModel,
+      fallbackModel: config.geminiVisionFallbackModel }),
     score, demo, demoDrop });
   let stopping = false;
   let stopWatcher: () => Promise<void> = async () => {};

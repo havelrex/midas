@@ -8,6 +8,7 @@ export interface Config {
   supabaseServiceRoleKey?: string;
   geminiApiKey?: string;
   geminiModel?: string;
+  geminiVisionFallbackModel?: string;
   stripeSecretKey?: string;
   stripePublishableKey?: string;
   stripeWebhookSecret?: string;
@@ -66,6 +67,7 @@ export function parseConfig(env: NodeJS.ProcessEnv): Config {
     port: Number(rawPort),
     geminiApiKey: env.GEMINI_API_KEY?.trim() || undefined,
     geminiModel: env.GEMINI_MODEL?.trim() || 'gemini-3.5-flash-lite',
+    geminiVisionFallbackModel: env.GEMINI_VISION_FALLBACK_MODEL?.trim() || undefined,
     serpApiKey: env.SERPAPI_KEY?.trim() || undefined,
     cacheTtlMinutes: Number(rawTtl),
     supabaseUrl: supabaseUrl!,
