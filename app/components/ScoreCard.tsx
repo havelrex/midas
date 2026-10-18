@@ -5,6 +5,7 @@ import {
   Image,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -20,8 +21,8 @@ interface Props {
   analysis: AnalysisOutput;
   score: ScoreOutput | null;
   status: ScoreStatus;
-  onSave: () => void; // swipe left/down, toward the Library button
-  onDelete: () => void; // swipe right/up
+  onSave: () => void; // swipe left, toward the Library button
+  onDelete: () => void; // swipe right
   onOpen: () => void; // tap: full detail
   onRetry: () => void; // scoring failed
 }
@@ -29,25 +30,26 @@ interface Props {
 const COMMIT_DISTANCE = 120;
 const COMMIT_VELOCITY = 0.8;
 
-// What a released drag does. Left or down saves (toward the Library button); right or up deletes.
-// Short, slow drags and saves that aren't allowed yet spring back.
+// What a released drag does. Only sideways drags count: left saves (toward the Library button),
+// right deletes. Up and down scroll the card. Short, slow drags and saves that aren't allowed spring back.
 export function swipeOutcome(
   g: { dx: number; dy: number; vx: number; vy: number },
   canSave: boolean,
 ): 'save' | 'delete' | 'cancel' {
-  const horizontal = Math.abs(g.dx) >= Math.abs(g.dy);
-  const distance = horizontal ? g.dx : g.dy;
-  const velocity = horizontal ? g.vx : g.vy;
-  if (Math.abs(distance) < COMMIT_DISTANCE && Math.abs(velocity) < COMMIT_VELOCITY) return 'cancel';
-  const save = horizontal ? distance < 0 : distance > 0;
+  if (Math.abs(g.dx) < Math.abs(g.dy)) return 'cancel';
+  if (Math.abs(g.dx) < COMMIT_DISTANCE && Math.abs(g.vx) < COMMIT_VELOCITY) return 'cancel';
+  const save = g.dx < 0;
   if (save && !canSave) return 'cancel';
   return save ? 'save' : 'delete';
 }
 
+// A drag is a swipe only when it's clearly sideways; anything more vertical belongs to the scroll view.
+const isSideways = (g: { dx: number; dy: number }) => Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5;
+
 // The card that appears after a snap. JS-only gestures (PanResponder + Animated), so no native build.
 export default function ScoreCard({ photoUri, analysis, score, status, onSave, onDelete, onOpen, onRetry }: Props) {
-  const { width, height } = useWindowDimensions();
-  const pan = useRef(new Animated.ValueXY()).current;
+  const { width } = useWindowDimensions();
+  const panX = useRef(new Animated.Value(0)).current;
   const canSave = status === 'ready' && !!score;
   const [open, setOpen] = useState(false); // "Show breakdown"
 
@@ -56,39 +58,34 @@ export default function ScoreCard({ photoUri, analysis, score, status, onSave, o
   latest.current = { canSave, onSave, onDelete };
 
   const responder = useMemo(() => {
-    const springBack = () =>
-      Animated.spring(pan, { toValue: { x: 0, y: 0 }, friction: 6, useNativeDriver: false }).start();
+    const springBack = () => Animated.spring(panX, { toValue: 0, friction: 6, useNativeDriver: false }).start();
 
-    const flyOut = (x: number, y: number, done: () => void) =>
-      Animated.timing(pan, { toValue: { x, y }, duration: 180, useNativeDriver: false }).start(done);
+    const flyOut = (x: number, done: () => void) =>
+      Animated.timing(panX, { toValue: x, duration: 180, useNativeDriver: false }).start(done);
 
     return PanResponder.create({
-      // Claim only real drags (capture phase, so it wins over the Pressable); a tap still opens the card.
-      onMoveShouldSetPanResponderCapture: (_e, g) => Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8,
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
+      // Claim only sideways drags (capture phase, so it wins over the Pressable); vertical drags scroll.
+      onMoveShouldSetPanResponderCapture: (_e, g) => isSideways(g),
+      onPanResponderTerminationRequest: () => false, // keep the swipe once it has started
+      onPanResponderMove: Animated.event([null, { dx: panX }], { useNativeDriver: false }),
       onPanResponderTerminate: springBack,
       onPanResponderRelease: (_e, g) => {
         const { canSave: allowed, onSave: saveCard, onDelete: deleteCard } = latest.current;
         const outcome = swipeOutcome(g, allowed);
         if (outcome === 'cancel') return springBack();
-
-        // Fly off in the direction of the drag.
-        const horizontal = Math.abs(g.dx) >= Math.abs(g.dy);
-        const sign = Math.sign(horizontal ? g.dx : g.dy) || 1;
-        flyOut(horizontal ? sign * width * 1.5 : 0, horizontal ? g.dy : sign * height, outcome === 'save' ? saveCard : deleteCard);
+        flyOut((outcome === 'save' ? -1 : 1) * width * 1.5, outcome === 'save' ? saveCard : deleteCard);
       },
     });
-  }, [pan, width, height]);
+  }, [panX, width]);
 
-  const rotate = pan.x.interpolate({ inputRange: [-width, 0, width], outputRange: ['-12deg', '0deg', '12deg'] });
+  const rotate = panX.interpolate({ inputRange: [-width, 0, width], outputRange: ['-12deg', '0deg', '12deg'] });
   const verdict = score ? VERDICT_DISPLAY[score.verdict] : null;
   const subtitle = [analysis.brand, analysis.model].filter(Boolean).join(' · ');
 
   return (
-    <Animated.View
-      style={[styles.card, { transform: [{ translateX: pan.x }, { translateY: pan.y }, { rotate }] }]}
-      {...responder.panHandlers}
-    >
+    <Animated.View style={[styles.card, { transform: [{ translateX: panX }, { rotate }] }]} {...responder.panHandlers}>
+      {/* Scrolls when the card (e.g. with the breakdown open) is taller than the space on screen. */}
+      <ScrollView style={styles.scroll} bounces={false} showsVerticalScrollIndicator>
       <Pressable
         onPress={canSave ? onOpen : undefined}
         accessibilityRole="button"
@@ -132,9 +129,7 @@ export default function ScoreCard({ photoUri, analysis, score, status, onSave, o
                 {subtitle}
               </Text>
             )}
-            <Text style={styles.name} numberOfLines={2}>
-              {analysis.name}
-            </Text>
+            <Text style={styles.name}>{analysis.name}</Text>
             {verdict && (
               <View style={[styles.pill, { backgroundColor: verdict.color }]}>
                 <Text style={styles.pillText}>{verdict.label}</Text>
@@ -172,16 +167,19 @@ export default function ScoreCard({ photoUri, analysis, score, status, onSave, o
               if (!sub) return null; // no usable data for this sub-score
               return (
                 <View key={key} style={styles.sub}>
+                  {/* Name and score share one line and never wrap; the bar and full reason sit below. */}
                   <View style={styles.subTop}>
-                    <Text style={styles.subLabel}>{label}</Text>
-                    <View style={styles.barTrack}>
-                      <View style={[styles.barFill, { width: `${Math.max(0, Math.min(100, sub.value))}%` }]} />
-                    </View>
-                    <Text style={styles.subValue}>{sub.value}</Text>
+                    <Text style={styles.subLabel} numberOfLines={1}>
+                      {label}
+                    </Text>
+                    <Text style={styles.subValue} numberOfLines={1}>
+                      {sub.value}
+                    </Text>
                   </View>
-                  <Text style={styles.subReason} numberOfLines={2}>
-                    {sub.reason}
-                  </Text>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { width: `${Math.max(0, Math.min(100, sub.value))}%` }]} />
+                  </View>
+                  <Text style={styles.subReason}>{sub.reason}</Text>
                 </View>
               );
             })}
@@ -212,6 +210,7 @@ export default function ScoreCard({ photoUri, analysis, score, status, onSave, o
 
         <Text style={styles.hint}>{canSave ? 'Tap for full details  ·  ← Save  ·  Delete →' : 'Delete →'}</Text>
       </Pressable>
+      </ScrollView>
     </Animated.View>
   );
 }
@@ -222,6 +221,7 @@ const styles = StyleSheet.create({
   card: {
     width: '90%',
     maxWidth: 420,
+    maxHeight: '96%', // of the photo area; the ScrollView inside takes over past this
     backgroundColor: 'rgba(255,255,255,0.94)',
     borderRadius: 34,
     borderWidth: 1,
@@ -231,6 +231,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.16,
     shadowRadius: 24,
   },
+  // Shrinks to the card's max height so it can scroll; clips to the card's corners here, not on the
+  // card itself, because overflow: hidden on the card would remove its shadow on iOS.
+  scroll: { flexGrow: 0, flexShrink: 1, borderRadius: 34, overflow: 'hidden' },
   body: { padding: 18, gap: 12 },
   pressed: { opacity: 0.7 },
   header: { flexDirection: 'row', gap: 14, alignItems: 'center' },
@@ -292,12 +295,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(60,60,67,0.08)',
   },
-  sub: { gap: 4 },
-  subTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  subLabel: { width: 64, color: colors.label, fontSize: 15, fontWeight: '600' },
-  barTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.fill, overflow: 'hidden' },
+  sub: { gap: 6 },
+  subTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
+  subLabel: { flexShrink: 1, color: colors.label, fontSize: 15, fontWeight: '600' },
+  barTrack: { height: 6, borderRadius: 3, backgroundColor: colors.fill, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3, backgroundColor: '#1c1c1e' },
-  subValue: { width: 28, textAlign: 'right', color: colors.label, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  subValue: { color: colors.label, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
   subReason: { color: colors.secondaryLabel, fontSize: 13, lineHeight: 18 },
   priceRow: {
     flexDirection: 'row',
