@@ -7,6 +7,7 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start --dev-client --tunnel",
+    "start:camera": "expo start --dev-client --tunnel=ngrok",
     "ios": "expo start --dev-client --ios",
     "typecheck": "tsc --noEmit"
   },
