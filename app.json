@@ -2,13 +2,14 @@
   "expo": {
     "name": "Snap & Score",
     "slug": "snapscore",
-    "version": "0.1.0",
+    "version": "1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.havelrex.snapscore"
+      "bundleIdentifier": "com.havelrex.snapscore",
+      "buildNumber": "2"
     },
     "plugins": [
       [
@@ -16,6 +17,13 @@
         {
           "cameraPermission": "Allow Snap & Score to use the camera to identify products.",
           "barcodeScannerEnabled": false
+        }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "enableGooglePay": false,
+          "disableSPM": true
         }
       ]
     ]
