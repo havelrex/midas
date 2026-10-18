@@ -3,12 +3,19 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { StatusBar } from 'expo-status-bar';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { apiFetch } from '../lib/apiFetch';
-import type { AnalysisOutput } from '../../shared/contracts';
+import { scoreItem, ScoreUnavailableError } from '../lib/scoreApi';
+import type { AnalysisOutput, LibraryItem, ScoreOutput } from '../../shared/contracts';
+import ScoreCard from '../components/ScoreCard';
+import { colors } from '../lib/theme';
+import UndoBar from '../components/UndoBar';
+import { type ScoreStatus, type Snap, useSaveSnap } from '../features/library/useSaveSnap';
+import { ItemDetailView } from './ItemDetailScreen';
 import {
   ActivityIndicator,
   AppState,
   Image,
   Linking,
+  Modal,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -21,6 +28,7 @@ export default function CameraScreen() {
   const captureInProgress = useRef(false);
   const session = useRef(0);
   const analysisRequest = useRef<AbortController | null>(null);
+  const scoreRequest = useRef<AbortController | null>(null);
   const mounted = useRef(false);
   const appState = useRef(AppState.currentState);
   const [permission, requestPermission, refreshPermission] = useCameraPermissions();
@@ -33,6 +41,46 @@ export default function CameraScreen() {
   const [error, setError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState(false);
   const [cameraKey, setCameraKey] = useState(0);
+  const [score, setScore] = useState<ScoreOutput | null>(null);
+  const [scoreStatus, setScoreStatus] = useState<ScoreStatus>('scoring');
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const saver = useSaveSnap({
+    onRestore: showSnap,
+    onSaveFailed: (snap) => {
+      // Put the card back only if the user hasn't moved on to another photo.
+      if (!photoUri) showSnap(snap);
+      setError("Couldn't save to Library. Check your connection and swipe again.");
+    },
+  });
+
+  // The snap currently on screen, as the save hook needs it.
+  const snap: Snap | null = photoUri && analysis ? { photoUri, analysis, score, scoreStatus } : null;
+
+  // Back to the live camera, dropping the current snap and any request for it.
+  function resetSnap() {
+    session.current += 1;
+    analysisRequest.current?.abort();
+    scoreRequest.current?.abort();
+    setAnalyzing(false);
+    setAnalysis(null);
+    setScore(null);
+    setScoreStatus('scoring');
+    setDetailOpen(false);
+    setReady(false);
+    setPhotoUri(null);
+    setError(null);
+  }
+
+  // Puts a swiped-away card back (Undo of a delete, or a save that failed).
+  function showSnap(restored: Snap) {
+    resetSnap();
+    setPhotoUri(restored.photoUri);
+    setAnalysis(restored.analysis);
+    setScore(restored.score);
+    setScoreStatus(restored.scoreStatus);
+    if (restored.scoreStatus === 'scoring') void scoreAnalysis(restored.analysis, session.current);
+  }
 
   useEffect(() => {
     mounted.current = true;
@@ -42,6 +90,7 @@ export default function CameraScreen() {
       appState.current = state;
       session.current += 1;
       analysisRequest.current?.abort();
+      scoreRequest.current?.abort();
       setAnalyzing(false);
       captureInProgress.current = false;
       setCapturing(false);
@@ -58,6 +107,7 @@ export default function CameraScreen() {
     return () => {
       mounted.current = false;
       analysisRequest.current?.abort();
+      scoreRequest.current?.abort();
       session.current += 1;
       subscription.remove();
     };
@@ -115,7 +165,11 @@ export default function CameraScreen() {
         method: 'POST', signal: controller.signal,
         body: JSON.stringify({ imageBase64: photo.base64, mimeType: 'image/jpeg' }),
       });
-      if (mounted.current && currentSession === session.current) setAnalysis(result);
+      if (mounted.current && currentSession === session.current) {
+        setAnalysis(result);
+        // Nothing to score if Gemini couldn't name the product; the user retakes instead.
+        if (result.name) void scoreAnalysis(result, currentSession);
+      }
     } catch (e) {
       // Shows in the Metro terminal: network failure, timeout, or the server's status code.
       console.warn('analyze failed:', e instanceof Error ? e.message : e);
@@ -128,11 +182,43 @@ export default function CameraScreen() {
     }
   }
 
+  async function scoreAnalysis(result: AnalysisOutput, currentSession: number) {
+    const controller = new AbortController();
+    scoreRequest.current?.abort();
+    scoreRequest.current = controller;
+    setScore(null);
+    setScoreStatus('scoring');
+    const timeout = setTimeout(() => controller.abort(), 40_000);
+    try {
+      const scored = await scoreItem(result, controller.signal);
+      if (mounted.current && currentSession === session.current) {
+        setScore(scored);
+        setScoreStatus('ready');
+      }
+    } catch (e) {
+      const unavailable = e instanceof ScoreUnavailableError;
+      if (!unavailable) console.warn('score failed:', e instanceof Error ? e.message : e);
+      if (mounted.current && currentSession === session.current) setScoreStatus(unavailable ? 'unavailable' : 'error');
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  // An unsaved snap shaped like a Library row, for the tap-to-expand detail sheet.
+  const draft: LibraryItem | null = snap?.score ? {
+    id: '', user_id: '', created_at: new Date().toISOString(),
+    thumbnail_url: snap.photoUri,
+    name: snap.analysis.name, summary: snap.analysis.summary, category: snap.analysis.category,
+    brand: snap.analysis.brand, model: snap.analysis.model,
+    score: Math.round(snap.score.score), subscores: snap.score.subscores, verdict: snap.score.verdict,
+    best_listing: snap.score.best_listing, target_price: null, checkout_status: 'none',
+  } : null;
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar style="light" />
       <View style={styles.header}>
-        <Text style={styles.title}>Snap & Score</Text>
+        <Text style={styles.title}>Midas</Text>
         <Text style={styles.hint}>{photoUri ? 'Photo captured' : 'Center one product in the frame'}</Text>
       </View>
 
@@ -149,7 +235,24 @@ export default function CameraScreen() {
       ) : (
         <View style={styles.preview}>
           {photoUri ? (
-            <Image accessibilityLabel="Captured product photo" source={{ uri: photoUri }} style={styles.fill} resizeMode="contain" />
+            <>
+              <Image accessibilityLabel="Captured product photo" source={{ uri: photoUri }} style={styles.fill} resizeMode="contain" />
+              {snap && !!snap.analysis.name && (
+                <View style={styles.cardLayer} pointerEvents="box-none">
+                  <ScoreCard
+                    key={snap.photoUri}
+                    photoUri={snap.photoUri}
+                    analysis={snap.analysis}
+                    score={snap.score}
+                    status={snap.scoreStatus}
+                    onSave={() => { saver.save(snap); resetSnap(); }}
+                    onDelete={() => { saver.discard(snap); resetSnap(); }}
+                    onOpen={() => setDetailOpen(true)}
+                    onRetry={() => void scoreAnalysis(snap.analysis, session.current)}
+                  />
+                </View>
+              )}
+            </>
           ) : active && !cameraError ? (
             <CameraView
               key={cameraKey}
@@ -179,7 +282,7 @@ export default function CameraScreen() {
       )}
 
       {analyzing && <View style={styles.result}><ActivityIndicator color="#fff" /><Text style={styles.hint}>Identifying product...</Text></View>}
-      {analysis && <View style={styles.result}>
+      {analysis && !analysis.name && <View style={styles.result}>
         <Text style={styles.title}>{analysis.name || 'Product not identified'}</Text>
         <Text style={styles.hint}>{[analysis.brand, analysis.model].filter(Boolean).join(' · ')}</Text>
         <Text style={styles.hint}>{analysis.summary}</Text>
@@ -190,17 +293,19 @@ export default function CameraScreen() {
         setError(null);
         void identifyPhoto(photoUri, session.current);
       }}><Text style={styles.buttonText}>Retry identification</Text></Pressable>}
+      {saver.banner && (
+        <UndoBar
+          key={saver.banner.id}
+          message={saver.banner.message}
+          onUndo={saver.banner.undo}
+          onExpire={() => saver.dismiss(saver.banner!.id)}
+        />
+      )}
       {permission?.granted && <View style={styles.controls}>
         {photoUri ? (
-          <Pressable accessibilityRole="button" style={styles.button} onPress={() => {
-            session.current += 1;
-            analysisRequest.current?.abort();
-            setAnalyzing(false);
-            setAnalysis(null);
-            setReady(false);
-            setPhotoUri(null);
-            setError(null);
-          }}><Text style={styles.buttonText}>Retake photo</Text></Pressable>
+          <Pressable accessibilityRole="button" style={styles.button} onPress={resetSnap}>
+            <Text style={styles.buttonText}>Retake photo</Text>
+          </Pressable>
         ) : (
           <Pressable
             accessibilityRole="button"
@@ -214,6 +319,15 @@ export default function CameraScreen() {
           </Pressable>
         )}
       </View>}
+
+      <Modal visible={detailOpen && !!draft} presentationStyle="pageSheet" animationType="slide" onRequestClose={() => setDetailOpen(false)}>
+        <View style={styles.sheetBar}>
+          <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setDetailOpen(false)}>
+            <Text style={styles.sheetDone}>Done</Text>
+          </Pressable>
+        </View>
+        {draft && <ItemDetailView item={draft} onCheckout={() => console.warn('TODO(Pedro): checkout from an unsaved snap')} />}
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -227,6 +341,9 @@ const styles = StyleSheet.create({
   message: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 20 },
   preview: { flex: 1, overflow: 'hidden' },
   fill: { width: '100%', height: '100%' },
+  cardLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
+  sheetBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, backgroundColor: colors.groupedBackground },
+  sheetDone: { color: colors.tint, fontSize: 17, fontWeight: '600' },
   controls: { alignItems: 'center', justifyContent: 'center', minHeight: 112, padding: 16 },
   button: { backgroundColor: '#fff', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 28 },
   buttonText: { color: '#000', fontSize: 16, fontWeight: '600' },
