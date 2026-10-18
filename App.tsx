@@ -1,11 +1,12 @@
 ﻿import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { AuthProvider, useAuth } from './app/features/auth/AuthProvider';
 import SignInScreen from './app/screens/SignInScreen';
 import CameraScreen from './app/screens/CameraScreen';
 import LibraryScreen from './app/screens/LibraryScreen';
 import ItemDetailScreen from './app/screens/ItemDetailScreen';
 import ProfileScreen from './app/screens/ProfileScreen';
+import CheckoutScreen from './app/screens/CheckoutScreen';
 
 export default function App() {
   return <AuthProvider><Root /></AuthProvider>;
@@ -19,12 +20,15 @@ function Root() {
   return <SignedIn key={session.user.id} />;
 }
 
-type Screen = { name: 'camera' } | { name: 'library' } | { name: 'item'; id: string };
+type Screen = { name: 'camera' } | { name: 'library' } | { name: 'item'; id: string } | { name: 'checkout'; id: string };
 
 // Camera -> Library (bottom-left) -> Item detail. Profile is a sheet over the camera (bottom-right).
 function SignedIn() {
   const [screen, setScreen] = useState<Screen>({ name: 'camera' });
   const [profileOpen, setProfileOpen] = useState(false);
+  if (screen.name === 'checkout') {
+    return <CheckoutScreen key={screen.id} itemId={screen.id} onBack={() => setScreen({ name: 'item', id: screen.id })} />;
+  }
 
   if (screen.name === 'library') {
     return (
@@ -39,7 +43,10 @@ function SignedIn() {
       <ItemDetailScreen
         id={screen.id}
         onBack={() => setScreen({ name: 'library' })}
-        onCheckout={(item) => console.warn('TODO(Pedro): open checkout for', item.id)}
+        onCheckout={(item) => {
+          if (item.id.startsWith('mock-')) Alert.alert('UI-only sample', 'This sample is not in Supabase. Use the real test library or save a test card before checkout.');
+          else setScreen({ name: 'checkout', id: item.id });
+        }}
       />
     );
   }

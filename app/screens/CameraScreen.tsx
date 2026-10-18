@@ -10,7 +10,7 @@ import { colors } from '../lib/theme';
 import UndoBar from '../components/UndoBar';
 import { type ScoreStatus, type Snap, useSaveSnap } from '../features/library/useSaveSnap';
 import { ItemDetailView } from './ItemDetailScreen';
-import { createDummySnap, DUMMY_TARGET_PRICE, TEST_TOOLS_ENABLED } from '../testing/dummySnap';
+import { createDummySnap, DUMMY_MODEL, DUMMY_TARGET_PRICE, TEST_TOOLS_ENABLED } from '../testing/dummySnap';
 import {
   ActivityIndicator,
   Alert,
@@ -220,7 +220,7 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
     brand: snap.analysis.brand, model: snap.analysis.model,
     score: Math.round(snap.score.score), subscores: snap.score.subscores, verdict: snap.score.verdict,
     best_listing: snap.score.best_listing,
-    target_price: TEST_TOOLS_ENABLED && snap.analysis.model === 'TEST-HEADPHONES-001' ? DUMMY_TARGET_PRICE : null,
+    target_price: TEST_TOOLS_ENABLED && snap.analysis.model === DUMMY_MODEL ? DUMMY_TARGET_PRICE : null,
     checkout_status: 'none',
   } : null;
 
@@ -231,7 +231,7 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
         <Text style={styles.title}>Midas</Text>
         <Text style={styles.hint}>{photoUri ? 'Photo captured' : 'Center one product in the frame'}</Text>
         {TEST_TOOLS_ENABLED && <>
-          <Text style={styles.testLabel}>TEST MODE - fictional item available</Text>
+          <Text style={styles.testLabel}>TEST MODE - shared sample item available</Text>
           <Pressable accessibilityRole="button" style={styles.button} onPress={() => {
             captureInProgress.current = false;
             setCapturing(false);
@@ -372,11 +372,9 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
           </Pressable>
         </View>
         {draft && <ItemDetailView item={draft} onCheckout={() => {
-          if (TEST_TOOLS_ENABLED && draft.model === 'TEST-HEADPHONES-001') {
-            Alert.alert('Test checkout handoff', 'Fixture: $120 total, $90 target. Stripe is not connected on this branch yet. Save the item first when testing checkout that requires a database ID.');
-          } else {
-            console.warn('TODO(Pedro): checkout from an unsaved snap');
-          }
+          if (TEST_TOOLS_ENABLED && draft.model === DUMMY_MODEL) {
+            Alert.alert('Save before checkout', 'Swipe this card into Library, then open the saved item to test Stripe. Pedro must register a sandbox offer for its saved item ID.');
+          } else Alert.alert('Save before checkout', 'Save this item to Library, then open its saved detail to check sandbox checkout availability.');
         }} />}
       </Modal>
     </SafeAreaView>

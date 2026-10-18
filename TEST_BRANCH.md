@@ -1,67 +1,98 @@
-# main-test workflow
+﻿# Shared main-test integration
 
-## Pedro: quick start on Mac
+This branch combines Stanley's navigation/UI/mock library, Pedro's sandbox
+checkout backend, camera/Gemini changes, and a native checkout test screen.
+No live payment keys are accepted. No actual products are purchased.
 
-Pull `main-test`, run `npm ci`, then configure your own ignored root `.env` with
-the team's test Supabase public URL/key and staging `EXPO_PUBLIC_API_URL`.
-Never copy backend-only secrets into public Expo variables.
+## Pedro: prerequisites
+
+1. Pull main-test. Apply Supabase migrations 0001, 0002, then
+   `supabase/migrations/0003_sandbox_checkout.sql` in the TEST project.
+2. Follow `server/CHECKOUT.md` for the same-sandbox Stripe keys, webhook secret,
+   Supabase service-role key, DEMO_MODE=true, and CHECKOUT_WATCHER_ENABLED=true.
+   Configure the deployed staging backend too if the app points to Render.
+3. Forward Stripe events to the running API, or register the deployed HTTPS
+   /webhooks/stripe endpoint. Webhook setup is required for reconciliation.
+4. Configure your ignored root .env with test Supabase public values and the
+   phone-reachable EXPO_PUBLIC_API_URL. Never use public prefixes on secrets.
+5. Use a compatible iOS development client containing the already-declared
+   Stripe, camera and image-manipulator modules. Coordinate native build work
+   with Havel per CLAUDE.md. No native packages/config were added in this change.
 
 ```sh
-git switch main-test
-git pull --ff-only origin main-test
+# Repo root
 npm ci
 npm run start:test
+# Another terminal
+cd server
+npm ci
+npm run dev
 ```
 
-This command enables the fixture for Metro without editing .env. Connect a
-compatible development client. Simulator UI testing needs an already installed
-compatible simulator build; a physical-device TestFlight app cannot run on the
-simulator. Native generation/signing remains coordinated with Havel under
-CLAUDE.md. To test real Gemini, keep the same session and use the camera instead
-of the fixture (real camera testing needs an iPhone).
+start:test enables EXPO_PUBLIC_TEST_TOOLS=true and sets
+EXPO_PUBLIC_MOCK_LIBRARY=0. This is deliberate: mock-1 etc. are UI-only IDs, not
+owned Supabase records, so they cannot be used for checkout. To inspect Stanley's
+mock library instead, run normal Metro with EXPO_PUBLIC_MOCK_LIBRARY=1. Mock rows
+are blocked from checkout. A standalone test build needs these flags when
+bundling; a branch push does not change the installed UI.
 
-Expected checks: load fixture without granting camera access; open details;
-confirm 78/Wait/$120; tap checkout and see the test handoff alert; discard then
-Undo; reload and save to the test database; Undo the save. The unsaved detail
-draft has an empty ID and must not be sent directly to a checkout API requiring
-a persisted item. The existing save flow initializes target_price to null;
-the $90 target is currently available on the unsaved fixture detail only.
+## Shared sample data, not a second mock catalog
 
-Stripe is NOT integrated on main-test yet. Merge Pedro's reviewed checkout work
-into this branch and connect ItemDetailView's onCheckout callback before testing
-PaymentSheet or PaymentIntents. The alert is a handoff placeholder, not a mocked
-successful payment. Do not infer Stripe readiness from UI/build checks alone.
+Load dummy item uses Stanley's first MOCK_ITEMS entry: Sony WH-1000XM5, score 72,
+Wait, sample listing $328, sample target $299. It adds [TEST] to the name and uses
+the bundled icon as a placeholder. It calls neither Gemini nor scoring. The
+sample retail listing is not payment authority; only Pedro's registered sandbox
+quote controls checkout. Retake returns to real camera analysis.
 
-Enable the test tools in the app's build/Metro environment:
+After sign-in, tap Load dummy item (no camera permission required), swipe to save,
+open Library, then the saved item's detail and Checkout. Saving uses real test
+Supabase/RLS and gives the item a UUID belonging to the signed-in tester. Use
+that UUID shown on checkout to register an offer; no new fixture endpoint or
+parallel mock backend was added. You can instead use an existing demo-account
+item that already has a real Supabase UUID.
 
-```dotenv
-EXPO_PUBLIC_TEST_TOOLS=true
+```sh
+# In server/, operator setup; PRICE and SHIPPING are integer cents:
+npm run checkout:demo -- offer ITEM_UUID 25900 500
 ```
 
-Restart Metro after changing the flag. Standalone TestFlight builds must be
-bundled with the flag; editing a laptop .env does not update an installed build.
-Native packages have not changed. Without this exact flag the test tools are hidden.
+Tap Refresh server status. Expect Cedar Electronics, $259 + $5 shipping = $264.
+This intentionally overrides the UI sample's retail price for the payment quote.
+The $299 draft target isn't saved by the existing save flow; enter the desired
+checkout target explicitly. Do not seed mock-user or mock-* IDs into checkout.
 
-After sign-in, tap **Load dummy item**. Camera permission is not required. The
-bundled app icon is used as an offline placeholder image. This loads a fictional
-headphone with a fixed score of 78, Wait verdict, $120 listing and $90 target.
-Loading the fixture never calls Gemini or the scoring backend. Retake returns
-to the ordinary camera flow for testing real Gemini identification.
+## Buy Now
 
-Use the existing card to test tap-to-expand, sub-score reasons, swipe discard,
-Undo, swipe save and undo-save. Save uses real Supabase auth, storage and RLS,
-so sign in with a test account and use the team's test database. Saved rows are
-prefixed [TEST]; remove them when finished. Do not use a production database.
+Use one saved test item with a registered offer. Tap Buy now (test), use test
+card 4242 4242 4242 4242, future expiry, any CVC and test postal code. Expect
+server order succeeded and matching test payment in Stripe. A PaymentSheet
+callback alone does not mark a purchase. Refresh if confirmation is pending.
+Closing the sheet leaves the existing order available to Resume or Cancel.
+The UI retains the request UUID across retries while mounted; the backend
+recovers pending orders after reopening. Confirm that repeated taps don't pay twice.
 
-The fixture's best_listing is a fictional test merchant with a non-resolving
-example.invalid URL, not a purchasable retailer listing. The detail sheet carries
-the target price for checkout integration. Checkout in this checkout of the app
-is still a TODO callback; no Stripe charge is wired or simulated by this fixture.
-Pedro can connect the fixture to his Stripe test-mode flow after his branch is
-merged. Use only Stripe test credentials and test cards for that work.
+## Buy at target
 
-Develop features on individual branches, then integrate on main-test. A branch
-does not itself enable test tools or update an installed iPhone app. Use a
-Metro-enabled development client for JS/UI reloads, or distribute a standalone
-test build. Point a separate staging backend at main-test; do not switch the
-shared production backend during experiments. Keep the flag unset in release builds.
+Use a SEPARATE saved item/offer. Enter 200.00, read and accept the exact server
+consent text, then save a test card and authorize. Expect an active watch and no
+purchase at $264. Trigger the drop from the operator terminal:
+
+```sh
+npm run checkout:demo -- price ITEM_UUID 18000
+```
+
+After a watcher pass, Refresh server status. Expect succeeded and $185 paid
+($180 + $5 shipping), rather than the $200 threshold. Verify in Stripe and Library.
+Cancel auto-buy before starting Buy Now on that same item. Include decline,
+sheet cancellation, stale quote and pending-order recovery tests; use the test
+scenarios in server/CHECKOUT.md. Advanced redirect-based authentication still
+needs native device testing and appropriate app return-URL configuration.
+
+## Boundaries
+
+The app never charges a mock-only or unsaved row. Unsaved camera detail directs
+testers to save first. Gemini remains independent and uses the selected branch
+only if that backend is actually deployed/running. No keys or migrations are
+applied automatically. UI/native PaymentSheet behavior must be exercised on a
+compatible iPhone/simulator build; Windows checks don't establish payment success.
+Keep this integration on main-test until device and sandbox tests pass.
