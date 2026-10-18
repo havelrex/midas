@@ -53,3 +53,16 @@ test('missing key, quota, timeout and malformed provider output return safe erro
       e instanceof AnalysisError && e.status === status && !e.message.includes('secret'));
   }
 });
+
+test('diagnostics identify provider failure without leaking key or response body', async () => {
+  const logs: string[] = [];
+  const analyze = createGeminiAnalyzer({ apiKey: 'private-key',
+    logger: { error: (message: string) => logs.push(message) },
+    fetcher: async () => new Response('private-photo-and-provider-message', { status: 403 }),
+  });
+  await assert.rejects(analyze(image), AnalysisError);
+  assert.equal(logs.length, 1);
+  assert.equal(JSON.parse(logs[0]).stage, 'provider_http');
+  assert.equal(JSON.parse(logs[0]).providerStatus, 403);
+  assert.doesNotMatch(logs.join(''), /private-|imageBase64/);
+});
