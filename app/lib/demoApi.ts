@@ -16,6 +16,19 @@ export async function createDemoOffer(itemId: string): Promise<string> {
   } catch (e) { return demoError(e); }
 }
 
+// Checkout's quiet version, called on every checkout open: asks the server to register the demo store's offer.
+// False (never throws) when demo mode is off (404), no trusted store lists the item (409), or demo checkout
+// isn't configured (503); checkout then just shows the item as not available.
+export async function ensureDemoOffer(itemId: string): Promise<boolean> {
+  try {
+    await post<{ price: number; created: boolean }>('/demo/offer', itemId);
+    return true;
+  } catch (e) {
+    console.warn('demo offer unavailable:', e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
 // Drops the sandbox store's price below the watch target: the watcher charges the card and the card refreshes.
 export async function dropDemoPrice(itemId: string): Promise<string> {
   try {
