@@ -4,6 +4,7 @@ import type { LibraryItem } from '../../../shared/contracts';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../auth/AuthProvider';
 import { getItem, listItems } from './api';
+import { MOCK_ITEMS } from './mockItems';
 
 // Applies one Realtime change to the newest-first list.
 export function applyChange(
@@ -22,7 +23,7 @@ export function applyChange(
 
 // All of the signed-in user's saved items, newest first, kept live via Realtime
 // (so e.g. checkout_status flipping to 'purchased' shows up without a refresh).
-export function useLibrary() {
+function useRealLibrary() {
   const { userId } = useAuth();
   const instanceId = useId(); // unique channel per hook instance; topics can't be shared
   const [items, setItems] = useState<LibraryItem[]>([]);
@@ -70,7 +71,7 @@ export function useLibrary() {
 
 // A single saved item for the detail screen, kept live via Realtime.
 // `deleted` flips when the row is removed elsewhere (another device, the dashboard).
-export function useItem(id: string | undefined) {
+function useRealItem(id: string | undefined) {
   const instanceId = useId();
   const [item, setItem] = useState<LibraryItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,3 +120,20 @@ export function useItem(id: string | undefined) {
 
   return { item, loading, error, deleted, refresh };
 }
+
+// UI work before /score exists: EXPO_PUBLIC_MOCK_LIBRARY=1 swaps in sample items (never written to the DB).
+// The flag is fixed for the whole bundle, so hook order never changes between renders.
+const MOCK_LIBRARY = process.env.EXPO_PUBLIC_MOCK_LIBRARY === '1';
+const noop = async () => {};
+
+function useMockLibrary() {
+  return { items: MOCK_ITEMS, loading: false, error: null as Error | null, refresh: noop };
+}
+
+function useMockItem(id: string | undefined) {
+  const item = MOCK_ITEMS.find((i) => i.id === id) ?? null;
+  return { item, loading: false, error: null as Error | null, deleted: false, refresh: noop };
+}
+
+export const useLibrary = MOCK_LIBRARY ? useMockLibrary : useRealLibrary;
+export const useItem = MOCK_LIBRARY ? useMockItem : useRealItem;
