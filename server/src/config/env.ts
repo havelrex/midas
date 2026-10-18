@@ -6,6 +6,8 @@ export interface Config {
   supabaseUrl: string;
   supabaseAnonKey: string;
   supabaseServiceRoleKey?: string;
+  geminiApiKey?: string;
+  geminiModel?: string;
 }
 
 export class ConfigurationError extends Error {}
@@ -30,6 +32,8 @@ export function parseConfig(env: NodeJS.ProcessEnv): Config {
 
   return {
     port: Number(rawPort),
+    geminiApiKey: env.GEMINI_API_KEY?.trim() || undefined,
+    geminiModel: env.GEMINI_MODEL?.trim() || 'gemini-3.5-flash-lite',
     supabaseUrl: supabaseUrl!,
     supabaseAnonKey,
     supabaseServiceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY?.trim() || undefined,

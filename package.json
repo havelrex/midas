@@ -7,6 +7,7 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start --dev-client --tunnel",
+    "start:camera": "expo start --dev-client --tunnel=ngrok",
     "ios": "expo start --dev-client --ios",
     "typecheck": "tsc --noEmit"
   },
@@ -26,6 +27,7 @@
     "react-native-url-polyfill": "^4.0.0"
   },
   "devDependencies": {
+    "@expo/ngrok": "^4.1.0",
     "@types/react": "~19.3.0",
     "typescript": "~6.0.3"
   }

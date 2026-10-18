@@ -1,8 +1,9 @@
 # Snap & Score API
 
 Small TypeScript/Express backend for the iOS app. This foundation provides startup,
-Supabase authentication, JSON errors, and tests. Gemini, listing search, scoring,
-checkout, and price watching will be added separately.
+Supabase authentication, JSON errors, and tests. Listing search, scoring,
+checkout, and price watching will be added separately. Gemini identification is
+available through the authenticated `POST /analyze` endpoint.
 
 ## Start locally
 
@@ -29,7 +30,8 @@ SUPABASE_ANON_KEY=your-project-anon-key
 verification, falling back to Supabase's `getUser(token)` for legacy signing keys
 or unavailable JWKS. `SUPABASE_SERVICE_ROLE_KEY` is only required if future
 automation explicitly calls `createSupabaseAdmin(config)`; it is not used by `/me`.
-Gemini, shopping, and Stripe keys are not required yet. Never give server secrets
+The Gemini key is optional at startup but required for `/analyze`. Shopping and
+Stripe keys are not required yet. Never give server secrets
 an `EXPO_PUBLIC_` prefix or commit `.env`.
 
 Keep the server terminal open. In another terminal:
@@ -60,6 +62,36 @@ const { userId } = await apiFetch<{ userId: string }>('/me');
 The helper attaches the session's access token. This is the manual end-to-end
 auth check; automated tests use local fixtures and never require real accounts.
 No UI or native build change is required by this backend foundation.
+
+## Product identification
+
+Add `GEMINI_API_KEY` to the repository-root `.env`, not `.env.example`.
+Optionally set `GEMINI_MODEL` (default `gemini-3.5-flash-lite`). Restart the API
+after changing these values. This implementation calls Google's REST API and
+adds no SDK dependency. Never put the Gemini key in an `EXPO_PUBLIC_` variable.
+
+`POST /analyze` requires a Supabase bearer token and JSON:
+
+```json
+{ "imageBase64": "<raw base64, no data URL prefix>", "mimeType": "image/jpeg" }
+```
+
+JPEG and PNG uploads up to 6 MB decoded are accepted. Success returns the
+`AnalysisOutput` fields from `shared/contracts.ts` directly. Unknown brand/model
+fields are empty strings. Confidence is an uncalibrated model heuristic. Missing
+configuration returns 503, provider quota 429, provider timeout 504, and invalid
+provider output 502. Images and keys are not logged or persisted by this server.
+
+The camera automatically resizes captured photos to width 1280, compresses to
+JPEG, calls `/analyze`, and displays product information. Retake cancels pending
+work; retry identification reuses the captured photo. Configure a phone-reachable
+`EXPO_PUBLIC_API_URL` and sign in first. No scoring or saving is performed yet.
+The existing native build must include the already-declared
+`expo-image-manipulator` dependency.
+
+Run `npm test` to verify the route and Gemini client with mocked provider calls.
+Live model accuracy, account quota, and real camera behavior still require manual
+testing with your configured key and iPhone.
 
 ## Check and build
 
