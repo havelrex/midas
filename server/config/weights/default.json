@@ -1,0 +1,30 @@
+{
+  "weights": { "quality": 0.25, "reviews": 0.2, "price": 0.3, "timing": 0.25 },
+  "verdict": { "buy_now_min": 70, "skip_max": 40, "buy_now_min_confidence": 0.6 },
+  "confidence": { "price_full_trust_listings": 5, "timing_full_trust_days": 30 },
+  "quality": {
+    "base": 75, "failure_multiplier": 250, "praise_multiplier": 100,
+    "expert_con_penalty": 8, "limited_below_reviews": 15,
+    "trust_halfway": 30, "prior_failure_rate": 0.06, "prior_praise_rate": 0.1,
+    "target_reviews": { "min": 30, "max": 80 }, "gemini_timeout_ms": 15000
+  },
+  "reviews": {
+    "category_avg": 4.3, "trust_halfway": 30, "low_stars": 3.8, "high_stars": 4.8,
+    "limited_below_reviews": 30,
+    "fake_review": { "five_share_min": 0.85, "middle_share_max": 0.08, "penalty": 15 }
+  },
+  "price": {
+    "score_multiplier": 250, "clean_low_ratio": 0.5, "clean_high_ratio": 2,
+    "risk_factor": 0.1, "limited_below_listings": 3,
+    "ebay": { "stars_per_missing_percent": 0.4, "unproven_below_feedback": 50, "unproven_max_stars": 4 },
+    "trusted_retailers": ["Best Buy", "Amazon.com", "Walmart", "Target", "Costco", "B&H Photo", "Apple", "Samsung"]
+  },
+  "timing": {
+    "window_days": 90, "limited_below_days": 14,
+    "sale_window_days": 42, "sale_penalty": 20, "near_low_position": 0.2,
+    "sale_events": [
+      { "name": "Black Friday", "date": "2026-11-27" },
+      { "name": "Cyber Monday", "date": "2026-11-30" }
+    ]
+  }
+}

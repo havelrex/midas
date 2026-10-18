@@ -13,16 +13,20 @@ export interface AnalysisOutput {
 // 2. Score output (Havel -> everyone)
 export type Verdict = 'buy_now' | 'wait' | 'skip';
 
+export type DataQuality = 'ok' | 'limited';
+
 export interface SubScore {
   value: number; // 0..100
   reason: string; // one-line explanation shown on the detail screen
+  data_quality: DataQuality;
 }
 
+// A sub-score that can't be computed is null. UI must handle null.
 export interface SubScores {
-  quality: SubScore;
-  price: SubScore;
-  reviews: SubScore;
-  timing: SubScore;
+  quality: SubScore | null;
+  price: SubScore | null;
+  reviews: SubScore | null;
+  timing: SubScore | null;
 }
 
 export interface BestListing {
@@ -37,6 +41,7 @@ export interface ScoreOutput {
   verdict: Verdict;
   subscores: SubScores;
   best_listing: BestListing;
+  suggested_target_price: number | null; // 90-day low when verdict is 'wait', else null
 }
 
 // 3. Library item (Stanley -> everyone): one row in public.items

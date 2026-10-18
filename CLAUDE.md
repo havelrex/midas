@@ -147,11 +147,24 @@ checkout_status ("none" | "watching" | "purchased")`
   The trusted retailer list is about reliability only.
 - Clamp every sub-score to 0 to 100.
 
-### Missing data
+### Missing and thin data
 - Fewer listings, reviews, or history than the spec wants: still score, set `data_quality: "limited"`,
-  use the limited-data reason string.
-- No usable data at all: set that sub-score to null and renormalize weights within its axis
-  (quality missing -> reviews carries the item axis, etc.).
+  use the limited-data reason string. `limited` is a label; it does not change weights by itself.
+- Thin data is handled continuously, never with a hard cutoff, and differently per sub-score:
+  - Reviews: the Bayesian shrink already covers it. Do not downweight it again.
+  - Quality: shrink the failure and praise rates toward category priors with `n / (n + trust_halfway)`.
+    Weight stays fixed. Expert cons are a count, not a rate, so they are not shrunk.
+  - Price and timing: reduce the weight. Shrinking toward 50 would claim "normal price", which we don't know.
+    `confidence.price = min(1, cleanedListings / price_full_trust_listings)`,
+    `confidence.timing = min(1, historyDays / timing_full_trust_days)`.
+    Effective weight = base weight x confidence, then renormalize within the axis so the axis keeps its
+    total weight. If a whole axis has confidence 0, renormalize across the remaining sub-scores.
+- No usable data at all: set that sub-score to null. This is confidence 0, so the same renormalization
+  applies (quality missing -> reviews carries the item axis, etc.).
+- Verdict cap: `buy_now` claims the price is at or near its low, so it never fires when price or timing
+  confidence is below `verdict.buy_now_min_confidence`. Fall back to `wait` and mark the result limited.
+- Confidence thresholds, quality priors, and the verdict floor live in `electronics.json`, with the other
+  tuning constants.
 - Never block the score card on a slow or failed call. The quality Gemini call failing or timing out
   is treated as no review text.
 
@@ -162,6 +175,8 @@ checkout_status ("none" | "watching" | "purchased")`
   `expert_reliability_cons`, `evidence_quote`). It never rates the product.
 - Set `reviews_read` in code, not from the model.
 - Prioritize 1 to 3 star reviews; target 30 to 80. Under ~15 is limited.
+- Shrink failure and praise rates toward category priors by `n / (n + trust_halfway)` before scoring, so
+  thin review data lands near a typical score instead of a random extreme.
 - Cache results by `brand + model`. The stage item must never change score between runs.
 - Start the Gemini call in parallel with price and timing as soon as the detail call returns.
 - Never claim a lifespan in a reason string.
