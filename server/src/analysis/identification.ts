@@ -4,7 +4,19 @@ export const identificationPrompt = `Identify the main foreground consumer produ
 Read visible branding and model text, but a readable model label is NOT required.
 Use product design knowledge: silhouette, headband and hinges, earcup geometry,
 button layout, ports, camera arrangement, logo placement, materials and proportions.
+Work from observed features to identity, not from the most popular brand/model.
+For headphones compare hinge/yoke design, headband attachment, seams and control
+placement. For mice compare wheel count, thumb buttons, profile and grip. For
+consoles compare controller attachment, bezels, vents and dock. For laptops and
+phones, chassis shape alone usually cannot establish year, CPU or storage SKU.
+Use category-appropriate clues rather than assuming every product is headphones.
 Compare up to three plausible models, including visually similar generations.
+Before ranking, actively check the nearest alternative for contradictory visible
+features. Evidence should say what is visible AND why it favors that model over
+the closest rival; absent/occluded features are not contradictions. Do not mark
+ambiguous merely because a label is absent when distinctive geometry resolves it.
+Do mark ambiguous when distinguishing features are hidden or identical. Color,
+packaging context, popularity and a logo are not independent model discriminators.
 For each candidate give its canonical model name, a confidence heuristic, and short
 independent visual observations that distinguish it from the nearest alternative.
 Do not invent features hidden by the angle, a serial number, storage capacity,

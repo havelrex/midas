@@ -1,5 +1,52 @@
 # Visual identification evaluation
 
+## camera-analysis-optimization changes
+
+This branch starts from ultimate-test, including its scoring and checkout work.
+The vision prompt now checks category-specific features and visible
+contradictions with the nearest rival instead of relying on popularity or logos.
+The candidate thresholds and public AnalysisOutput contract are unchanged.
+
+Camera capture quality is 0.9. Uploads preserve aspect ratio, do not upscale,
+limit the longest edge to 1600px, and use JPEG quality 0.85. This retains more
+detail than the previous double compression at quality 0.7. Larger uploads can
+increase latency and provider token cost. Device validation remains necessary.
+
+Optionally set GEMINI_VISION_FALLBACK_MODEL to a stronger vision model available
+to the team's Google project. It is unset by default: there is no additional
+call/cost unless enabled. The primary model is still GEMINI_MODEL. A fallback is
+used only when a product category is recognized but the exact model is unresolved.
+The second model gets the original image without the first model's guesses,
+uses the same evidence rules, and conflicting brand results are discarded. A
+failed fallback preserves the initial family result. Requests allow 18 seconds
+for the first pass and 12 for fallback when enabled; network/provider slowness
+can still leave identification unresolved. Do not configure the same model twice.
+This is inference, not catalog verification, and does not guarantee correctness.
+
+## Repeatable saved-photo test (no TestFlight rebuild)
+
+From server/, with a server-only GEMINI_API_KEY in the ignored root .env:
+
+```sh
+npm run analyze:photo -- --image /path/to/headphones.jpg --expected-model WH-1000XM5
+npm run analyze:photo -- --image /path/to/headphones.jpg --model YOUR_COMPARISON_MODEL --expected-model WH-1000XM5
+npm run analyze:photo -- --image /path/to/headphones.jpg --fallback-model YOUR_STRONGER_MODEL --expected-model WH-1000XM5
+```
+
+Each command explicitly sends that image to Google and consumes API quota. It
+prints public product JSON, elapsed time and correct/incorrect/unresolved outcome.
+Use --expected-model "" for a product whose exact model is genuinely ambiguous.
+This bypasses HTTP authentication, resizing and scoring to isolate vision; test
+the camera upload separately. No API key, raw provider response or image data is
+printed. Model IDs must exist and support the request schema in your project.
+The test command doesn't require the backend to be deployed or the API to run.
+
+Backend prompt/fallback changes can be tested by restarting/deploying this
+branch behind the app's existing URL. The capture-quality change requires new
+JavaScript loaded through Metro or a new standalone app bundle, not new native
+dependencies. Do not deploy to the shared ultimate-test backend without team
+coordination. Automated tests mock Gemini and do not demonstrate accuracy gains.
+
 The vision prompt now considers up to three candidate models using silhouette,
 controls, ports, hinge geometry and branding even when a label is not readable.
 Candidate evidence stays internal; `/analyze` still returns the shared six-field
