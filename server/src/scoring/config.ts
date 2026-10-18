@@ -7,7 +7,8 @@ export interface ScoringConfig {
   confidence: { price_full_trust_listings: number; timing_full_trust_days: number };
   quality: {
     base: number; failure_multiplier: number; praise_multiplier: number; expert_con_penalty: number;
-    limited_below_reviews: number; trust_halfway: number; prior_failure_rate: number; prior_praise_rate: number;
+    limited_below_reviews: number; fallback_below_reviews: number; trust_halfway: number; prior_failure_rate: number; prior_praise_rate: number;
+    low_trust_halfway: number; prior_low_failure_fraction: number; prior_high_praise_fraction: number; limited_below_ratings: number;
     target_reviews: { min: number; max: number }; gemini_timeout_ms: number;
   };
   reviews: {
@@ -22,7 +23,10 @@ export interface ScoringConfig {
     ebay: { stars_per_missing_percent: number; unproven_below_feedback: number; unproven_max_stars: number };
     trusted_retailers: string[];
   };
-  demo: { sandbox_markup: number; drop_undercut: number };
+  demo: {
+    sandbox_markup: number; drop_undercut: number;
+    featured_products: { brand: string; model: string; aliases: string[]; sandbox_price_ratio: number }[];
+  };
   timing: {
     window_days: number; limited_below_days: number; sale_window_days: number; sale_penalty: number;
     near_low_position: number; sale_events: { name: string; date: string }[];

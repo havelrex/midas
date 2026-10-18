@@ -5,7 +5,7 @@ import test from 'node:test';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import type { AnalysisOutput } from '../src/analysis/gemini.js';
-import { ListingsError, toShoppingItem, type SerpApi } from '../src/listings/serpapi.js';
+import { ListingsError, toProductDetail, toShoppingItem, type SerpApi } from '../src/listings/serpapi.js';
 import { loadScoringConfig } from '../src/scoring/config.js';
 import { createDemo, SANDBOX_MERCHANT } from '../src/scoring/demo.js';
 import { defaultHistoryDir } from '../src/scoring/priceHistory.js';
@@ -23,6 +23,7 @@ const detail = { product_results: { rating: 4.7, reviews: 5000,
   ratings: [{ stars: 1, amount: 100 }, { stars: 2, amount: 100 }, { stars: 3, amount: 200 }, { stars: 4, amount: 800 }, { stars: 5, amount: 3800 }],
   user_reviews: [{ rating: 5, text: 'Two years and still perfect' }, { rating: 4, text: 'Great sound' }] } };
 const serp = (overrides: Partial<SerpApi> = {}): SerpApi => ({
+  productReviews: async () => [],
   searchShopping: async () => rawListings.map((r) => toShoppingItem(r)!),
   productDetail: async () => {
     const { toProductDetail } = await import('../src/listings/serpapi.js');
@@ -142,4 +143,54 @@ test('demo: the sandbox store is not added when no real store is vouched for', a
   assert.equal(output.best_listing?.merchant, 'Shop A');
   assert.equal(output.subscores.price?.data_quality, 'limited');
   assert.ok(meta.confidence.price < cfg.verdict.buy_now_min_confidence);
+});
+
+test('when the first search finds no trusted store, other wordings are tried and merged', async () => {
+  const queries: string[] = [];
+  const unknown = ['Shop A', 'Shop B', 'Shop C'].map((m, i) => toShoppingItem(raw(m, 250 + i * 10))!);
+  const withTrusted = rawListings.slice(0, 6).map((r) => toShoppingItem(r)!); // Best Buy, Amazon.com, Walmart among them
+  const s: SerpApi = { ...serp(), searchShopping: async (q) => { queries.push(q); return queries.length === 1 ? unknown : withTrusted; } };
+  const { output } = await createScorer({ serp: s, quality: quality(), historyDir: freshHistory(), now })(analysis);
+  assert.equal(queries.length, 2);
+  assert.match(queries[1], /wireless/);
+  assert.equal(output.best_listing?.merchant, 'Best Buy');
+  assert.equal(output.subscores.price?.data_quality, 'ok');
+});
+
+test('no extra searches when the first search already has a trusted store, and a failed fallback is ignored', async () => {
+  let calls = 0;
+  const fine: SerpApi = { ...serp(), searchShopping: async () => { calls++; return rawListings.slice(0, 6).map((r) => toShoppingItem(r)!); } };
+  await createScorer({ serp: fine, quality: quality(), historyDir: freshHistory(), now })(analysis);
+  assert.equal(calls, 1);
+  let n = 0;
+  const flaky: SerpApi = { ...serp(), searchShopping: async () => { n++; if (n > 1) throw new Error('down'); return ['Shop A', 'Shop B', 'Shop C'].map((m, i) => toShoppingItem(raw(m, 250 + i * 10))!); } };
+  const { output } = await createScorer({ serp: flaky, quality: quality(), historyDir: freshHistory(), now })(analysis);
+  assert.equal(n, 3); // both fallbacks tried, both failed, scoring still completes
+  assert.equal(output.subscores.price?.data_quality, 'limited');
+});
+
+test('few Google reviews are topped up with Walmart reviews; enough Google reviews skip the extra calls', async () => {
+  let walmartCalls = 0;
+  const prompts: string[] = [];
+  const many = Array.from({ length: 20 }, (_, i) => ({ rating: i < 10 ? 1 : 5, text: `walmart review ${i}` }));
+  const topUp: SerpApi = { ...serp(), productReviews: async () => { walmartCalls++; return many; } };
+  const q = createQualityService({ cfg: cfg.quality, generate: async (prompt) => { prompts.push(prompt); return goodSignals; } });
+  const { output } = await createScorer({ serp: topUp, quality: q, historyDir: freshHistory(), now })(analysis);
+  assert.equal(walmartCalls, 1);
+  assert.match(prompts[0], /walmart review 3/);
+  assert.match(prompts[0], /Two years and still perfect/); // Google's own review is kept too
+  assert.ok(output.subscores.quality);
+  assert.doesNotMatch(output.subscores.quality!.reason, /Only \d+ reviews/);
+
+  walmartCalls = 0;
+  const enough = { ...topUp, productDetail: async () => toProductDetail({ product_results: { rating: 4.7, reviews: 5000, ratings: [{ stars: 1, amount: 100 }, { stars: 2, amount: 100 }, { stars: 3, amount: 200 }, { stars: 4, amount: 800 }, { stars: 5, amount: 3800 }],
+    user_reviews: Array.from({ length: 16 }, (_, i) => ({ rating: 3, text: `google review ${i}` })) } }) };
+  await createScorer({ serp: enough, quality: createQualityService({ cfg: cfg.quality, generate: async () => goodSignals }), historyDir: freshHistory(), now })(analysis);
+  assert.equal(walmartCalls, 0);
+});
+
+test('a failing Walmart top-up never blocks the score', async () => {
+  const broken: SerpApi = { ...serp(), productReviews: async () => { throw new Error('down'); } };
+  const { output } = await createScorer({ serp: broken, quality: quality(), historyDir: freshHistory(), now })(analysis);
+  assert.ok(output.subscores.quality); // falls back to the reviews Google gave
 });

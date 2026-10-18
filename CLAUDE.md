@@ -24,8 +24,10 @@ leftover references when you touch those files.)
 - Listings and reviews: SerpAPI (Google Shopping + `google_immersive_product` detail call). Search brand + model +
   category (e.g. "Sony WH-1000XM5 Headphones"); brand + model alone returns junk marketplace results.
   eBay Browse API is deferred (access takes a business day), so SerpAPI is the only listings source for now.
-  Fallback for thin review text: SerpAPI Walmart or Amazon review engines (not built yet).
-  The detail call returns about 6 owner reviews and the star breakdown, but no expert snippets.
+  The detail call returns about 6 owner reviews and the star breakdown, but no expert snippets. Below 15 reviews,
+  top up with Walmart's reviews through SerpAPI (`engine=walmart` to find the product, then `walmart_product_reviews`
+  with `sort=rating-asc` and `rating-desc`, about 20 each). SerpAPI's Amazon review engine and Google's product
+  reviews are not usable on our plan.
 - Checkout: Stripe test mode with a fake merchant we add. Saved card, charged off-session with a
   PaymentIntent for buy-at-target.
 - Push: Expo Notifications (APNs). Push only works on a real iPhone.
@@ -139,6 +141,9 @@ checkout_status ("none" | "watching" | "purchased")`
   - Swipe right/up = delete, back to camera. Deleted items are never written to the DB.
   - Tap = expand to full item detail with sub-score reasons and checkout.
 - No confirm/correct step for identification. Wrong ID = user deletes and retakes.
+- If identification returns no model, the item is never scored or saved: the card says the exact model could not be
+  read and the user must retake the photo (`no_model` status; `POST /score` also answers 422). A featured demo
+  product with a recognizable name but no model gets its model filled in first (see Demo mode).
 - Show the real star rating and review count. Never show adjusted ratings or the seller risk penalty.
 
 ## Scoring rules
@@ -184,11 +189,14 @@ checkout_status ("none" | "watching" | "purchased")`
 - Gemini only counts (`failure_mentions`, `early_failure_mentions`, `durability_praise`,
   `expert_reliability_cons`, `evidence_quote`). It never rates the product.
 - Set `reviews_read` in code, not from the model.
-- Prioritize 1 to 3 star reviews; target 30 to 80. Under ~15 is limited. The detail call only returns about
-  6 reviews, so most items will be limited until a second review source is added.
-- That sample is skewed toward failures, so rescale the failure rate by (real 1-3 star share / sample 1-3 star
-  share) and the praise rate by the matching 4-5 star shares, using the star breakdown, before shrinking.
-  Both shares are set in code. Skip the rescale when the breakdown is missing.
+- Prioritize 1 to 3 star reviews; target 30 to 80. Under ~15 is limited. Google's detail call returns about 6, so
+  Walmart's lowest- and highest-rated pages are added (about 46 reviews total). A failed top-up falls back to what
+  Google gave.
+- That sample is skewed toward failures, so the star breakdown carries the volume: the failure rate is
+  (real share of 1-2 star ratings) x (share of the low-rated reviews we read that report a failure), and praise is
+  (real share of 3-5 star ratings) x (share of the higher-rated reviews that praise durability), each shrunk toward
+  a prior when few reviews were read. Complaints are 1 and 2 stars only; 3 stars is neutral (some catalog cards
+  are mostly 3-star). Both shares are set in code. Without a breakdown, fall back to shrinking the raw rates.
 - Shrink failure and praise rates toward category priors by `n / (n + trust_halfway)` before scoring, so
   thin review data lands near a typical score instead of a random extreme.
 - Cache results by `brand + model`. The stage item must never change score between runs.
@@ -247,8 +255,16 @@ One flag, `DEMO_MODE`, controls the demo-only behavior and nothing in normal sco
 How the demo works:
 - The sandbox merchant is the same store as checkout's (`MERCHANT` in `server/src/checkout/model.ts`, currently
   "Cedar Electronics"), so the card's best listing and the checkout quote name one store. It starts priced slightly
-  above the best real price, so a real store wins and the stage item lands on Wait. It is only added next to a
-  trusted real store.
+  above the best real price, so a real store wins and the stage item lands on Wait (non-featured items). It is only
+  added next to a trusted real store.
+- Demo-only exception for featured products (`demo.featured_products` in the weights config; currently Apple
+  AirPods Max, matched by punctuation-proof brand + model): the sandbox store is the best listing from the first scan.
+  It still wins only by price: it is priced `sandbox_price_ratio` (0.97) times the cheapest cleaned real total, so
+  ordinary ranking picks it, with no special case in scoring or ranking code. It is added whenever any cleaned real
+  listing exists (no vouched store needed). Gated by `DEMO_MODE` and the featured match; normal items are unchanged.
+  This deliberately departs from "starts above the best real price" and must be disclosed in the pitch.
+  `/analyze` and `/score` also fill a missing model from a featured alias in the product name ("AirPods Max"),
+  and `/score` returns 422 ("Retake the photo...") when no model can be read.
 - The price drop lowers the sandbox price below the user's target and below every real store.
   It becomes `best_listing` only by having the lowest price. Scoring code never forces it to win.
 - The dropped price is appended to the item's history as today's entry, so reopening the item shows timing at

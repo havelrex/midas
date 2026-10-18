@@ -41,6 +41,7 @@ test('cached SerpAPI calls the network once per query and detail token, ignoring
   const serp: SerpApi = {
     searchShopping: async () => { searches++; return [toShoppingItem(raw)!]; },
     productDetail: async () => { details++; return { avg: 4.6, n: 100, breakdown: null, reviews: [], expertSnippets: [] }; },
+    productReviews: async () => [],
   };
   const cached = withCache(serp, createDiskCache({ dir: dir(), ttlMs: 60_000 }));
   const first = await cached.searchShopping('Sony WH-1000XM5 Headphones');
@@ -55,6 +56,7 @@ test('failures are not cached', async () => {
   const serp: SerpApi = {
     searchShopping: async () => { calls++; if (calls === 1) throw new Error('down'); return []; },
     productDetail: async () => null,
+    productReviews: async () => [],
   };
   const cached = withCache(serp, createDiskCache({ dir: dir(), ttlMs: 60_000 }));
   await assert.rejects(cached.searchShopping('q'));
@@ -91,7 +93,7 @@ test('cache lifetime is configurable and validated', () => {
 
 test('different spellings of one model share cached search results', async () => {
   let searches = 0;
-  const serp: SerpApi = { searchShopping: async () => { searches++; return []; }, productDetail: async () => null };
+  const serp: SerpApi = { searchShopping: async () => { searches++; return []; }, productDetail: async () => null, productReviews: async () => [] };
   const cached = withCache(serp, createDiskCache({ dir: dir(), ttlMs: 60_000 }));
   const key = `product:${productKey('Sony', 'WH-1000XM5')}`;
   await cached.searchShopping('Sony WH-1000XM5 Headphones', key);

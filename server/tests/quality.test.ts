@@ -120,7 +120,52 @@ test('extraction sets both star shares in code from the reviews sent and the bre
   const generate = async () => JSON.stringify({ failure_mentions: 2, early_failure_mentions: 1, durability_praise: 0, expert_reliability_cons: 0, evidence_quote: 'died' });
   const s = (await extractQualitySignals(generate, 'X', data, cfg))!;
   assert.equal(s.sample_low_share, 0.5);
-  assert.equal(s.population_low_share, 0.1);
+  assert.equal(s.population_low_share, 0.05); // 1 and 2 stars only: (20 + 30) / 1000
   const none = (await extractQualitySignals(generate, 'X', { ...data, breakdown: null }, cfg))!;
   assert.equal(none.population_low_share, null);
+});
+
+// With the star breakdown, the few text reviews only say what share of low ratings are about failures.
+const withBreakdown = (o: Partial<QualitySignals>) =>
+  sig({ reviews_read: 6, sample_low_share: 0.5, population_low_share: 0.07, population_total: 16009, ...o });
+
+test('breakdown path: the headline is the rating volume, never "Only 6 reviews"', () => {
+  const r = scoreQuality(withBreakdown({ failure_mentions: 1 }), cfg)!;
+  assert.equal(r.reason, '7% of 16,009 ratings are 1 or 2 stars, and 1 of the 3 low-rated reviews we read mentions a failure');
+  assert.equal(r.data_quality, 'ok');
+  assert.doesNotMatch(r.reason, /Only \d+ reviews/);
+});
+
+test('breakdown path: a product with few low ratings beats one with many, on the same 6 reviews', () => {
+  const good = scoreQuality(withBreakdown({ population_low_share: 0.05 }), cfg)!;
+  const bad = scoreQuality(withBreakdown({ population_low_share: 0.4 }), cfg)!;
+  assert.ok(good.value > bad.value + 15, `${good.value} vs ${bad.value}`);
+  assert.ok(good.value >= 70 && good.value <= 100);
+});
+
+test('breakdown path: more failure mentions among the low-rated reviews lowers the score, but only modestly with 3 of them', () => {
+  const none = scoreQuality(withBreakdown({ failure_mentions: 0 }), cfg)!;
+  const all = scoreQuality(withBreakdown({ failure_mentions: 3 }), cfg)!;
+  assert.ok(none.value > all.value);
+  assert.ok(none.value - all.value < 15);
+  assert.equal(none.reason, '7% of 16,009 ratings are 1 or 2 stars, and none of the 3 low-rated reviews we read mention a failure');
+});
+
+test('breakdown path: no low-rated reviews read still gives a factual line, and small rating counts are limited', () => {
+  assert.equal(scoreQuality(withBreakdown({ sample_low_share: 0 }), cfg)!.reason, '7% of 16,009 ratings are 1 or 2 stars');
+  assert.equal(scoreQuality(withBreakdown({ population_total: 50 }), cfg)!.data_quality, 'limited');
+});
+
+test('breakdown path: early failures keep the quote, and the score stays clamped', () => {
+  const r = scoreQuality(withBreakdown({ failure_mentions: 2, early_failure_mentions: 2, evidence_quote: 'snapped after 8 months' }), cfg)!;
+  assert.equal(r.reason, '7% of 16,009 ratings are 1 or 2 stars, and 2 of the 6 reviews we read mention failure within 6 months, including "snapped after 8 months"');
+  assert.ok(r.value >= 0 && r.value <= 100);
+});
+
+test('extraction passes the total rating count so the breakdown path is used', async () => {
+  const data = { reviews: [{ rating: 1, text: 'died' }, { rating: 5, text: 'great' }], expertSnippets: [], breakdown: { 5: 800, 4: 100, 3: 50, 2: 30, 1: 20 } };
+  const generate = async () => JSON.stringify({ failure_mentions: 1, early_failure_mentions: 0, durability_praise: 1, expert_reliability_cons: 0, evidence_quote: '' });
+  const s = (await extractQualitySignals(generate, 'X', data, cfg))!;
+  assert.equal(s.population_total, 1000);
+  assert.match(scoreQuality(s, cfg)!.reason, /^5% of 1,000 ratings/);
 });

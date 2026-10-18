@@ -55,7 +55,7 @@ if (cmd === 'reviews') {
   copyFileSync(`${defaultHistoryDir}sony-wh1000xm5.json`, `${dir}sony-wh1000xm5.json`);
   const demo = createDemo({ cfg: cfg.demo, historyDir: dir });
   const generate = async () => JSON.stringify({ failure_mentions: 1, early_failure_mentions: 0, durability_praise: 12, expert_reliability_cons: 0, evidence_quote: '' });
-  const score = createScorer({ serp: { searchShopping: async () => items, productDetail: async () => detail },
+  const score = createScorer({ serp: { searchShopping: async () => items, productDetail: async () => detail, productReviews: async () => [] },
     quality: createQualityService({ cfg: cfg.quality, generate }), demo, historyDir: dir, now: () => new Date('2026-10-18T12:00:00Z') });
   const product = { category: 'Headphones', brand: 'Sony', model: 'WH-1000XM5', name: 'Sony WH-1000XM5 headphones', summary: '', confidence: 0.9 };
   const before = await score(product);

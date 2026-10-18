@@ -113,7 +113,8 @@ Run `npm run typecheck` from the repository root separately to check the mobile 
 
 ## Scoring
 
-`POST /score` (bearer token required) takes the `/analyze` output and returns a `ScoreOutput` from
+`POST /score` (bearer token required) answers 422 when the analysis has no model (the app then asks for a retake).
+Otherwise it takes the `/analyze` output and returns a `ScoreOutput` from
 `shared/contracts.ts`: score, verdict, four sub-scores (each may be `null`), `best_listing`,
 `suggested_target_price`, and `verdict_capped` (true when a Buy now was downgraded to Wait because price or
 timing data was too thin). It needs `SERPAPI_KEY`; Gemini (quality) is optional and a failure only nulls quality.
@@ -128,6 +129,9 @@ timing data was too thin). It needs `SERPAPI_KEY`; Gemini (quality) is optional 
   (so the watcher charges the card), appends today's price to the history, and re-scores and updates the saved item.
   `{ brand, model, target_price? }` without an item only changes scoring. Drops are written to
   `data/cache/price-history/` (gitignored), never into the seed files.
+  Demo-only exception: for a featured product (`demo.featured_products` in the weights config, currently Apple
+  AirPods Max) the sandbox is priced 0.97x the cheapest real total, so it is the best listing from the first scan
+  (it still wins by price only). Only when `DEMO_MODE` is on; disclose it in the pitch.
 - Terminal checks (run from `/server`): `npm run try:reviews -- 4.7 5000`, `try:timing -- 279 259 329`,
   `try:quality -- 60 6 3 11 1`, `try:price`, `try:score` (offline, whole pipeline with a price drop),
   `try:live -- Sony WH-1000XM5 Headphones` (real SerpAPI and Gemini), and `try:demo` (the stage story on live data).

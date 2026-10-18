@@ -4,8 +4,9 @@
   "confidence": { "price_full_trust_listings": 5, "timing_full_trust_days": 30 },
   "quality": {
     "base": 75, "failure_multiplier": 250, "praise_multiplier": 100,
-    "expert_con_penalty": 8, "limited_below_reviews": 15,
+    "expert_con_penalty": 8, "limited_below_reviews": 15, "fallback_below_reviews": 15,
     "trust_halfway": 30, "prior_failure_rate": 0.06, "prior_praise_rate": 0.1,
+    "low_trust_halfway": 4, "prior_low_failure_fraction": 0.4, "prior_high_praise_fraction": 0.1, "limited_below_ratings": 200,
     "target_reviews": { "min": 30, "max": 80 }, "gemini_timeout_ms": 15000
   },
   "reviews": {
@@ -23,7 +24,12 @@
       "Newegg.com", "Adorama", "Micro Center", "Lowe's", "Home Depot", "Dell", "Staples", "Macy's", "Crutchfield"
     ]
   },
-  "demo": { "sandbox_markup": 0.02, "drop_undercut": 1 },
+  "demo": {
+    "sandbox_markup": 0.02, "drop_undercut": 1,
+    "featured_products": [
+      { "brand": "Apple", "model": "AirPods Max", "aliases": ["airpods max"], "sandbox_price_ratio": 0.97 }
+    ]
+  },
   "timing": {
     "window_days": 90, "limited_below_days": 14,
     "sale_window_days": 42, "sale_penalty": 20, "near_low_position": 0.2,

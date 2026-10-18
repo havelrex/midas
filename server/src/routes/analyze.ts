@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { AnalysisError, validateOutput, type AnalyzeImage, type ProductImage } from '../analysis/gemini.js';
+import { loadScoringConfig } from '../scoring/config.js';
+import { normalizeFeatured } from '../scoring/demo.js';
 import { requireUser, type VerifyToken } from '../middleware/requireUser.js';
 
 export function analyzeRouter(verifyToken: VerifyToken, analyze?: AnalyzeImage) {
@@ -25,7 +27,7 @@ export function analyzeRouter(verifyToken: VerifyToken, analyze?: AnalyzeImage) 
         res.status(400).json({ error: 'Image content does not match its format.' }); return;
       }
       if (!analyze) throw new AnalysisError(503, 'Product identification is not configured.');
-      res.json(validateOutput(await analyze({ imageBase64, mimeType } as ProductImage)));
+      res.json(normalizeFeatured(loadScoringConfig('electronics').demo, validateOutput(await analyze({ imageBase64, mimeType } as ProductImage))));
     } catch (error) {
       if (error instanceof AnalysisError) { res.status(error.status).json({ error: error.message }); return; }
       next(error);

@@ -1,8 +1,12 @@
 import type { StarBreakdown } from '../scoring/reviews.js';
-import { pickReviewSource } from '../scoring/reviews.js';
 import type { OwnerReview } from '../scoring/qualityExtract.js';
 import type { Listing } from '../scoring/types.js';
 import { titleHasModel } from './clean.js';
+
+export const mergeItems = (a: ShoppingItem[], b: ShoppingItem[]): ShoppingItem[] => {
+  const seen = new Set(a.map((i) => `${i.listing.merchant}|${i.listing.title}|${i.listing.price}`));
+  return [...a, ...b.filter((i) => !seen.has(`${i.listing.merchant}|${i.listing.title}|${i.listing.price}`))];
+};
 
 export class ListingsError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -26,6 +30,8 @@ export interface ProductDetail {
 export interface SerpApi {
   // cacheKey names the product, so different spellings of one model share cached results.
   searchShopping(query: string, cacheKey?: string): Promise<ShoppingItem[]>;
+  // More owner reviews than Google's detail call gives (about 6): Walmart's lowest-rated and highest-rated pages.
+  productReviews(brand: string, model: string, cacheKey?: string): Promise<OwnerReview[]>;
   productDetail(token: string): Promise<ProductDetail | null>;
 }
 
@@ -75,10 +81,23 @@ export function toProductDetail(raw: Raw): ProductDetail | null {
 }
 
 // The product to read reviews from: new, model number in the title, and the most reviews.
-export function pickProduct(items: ShoppingItem[], model: string): ShoppingItem | null {
-  const candidates = items.filter((i) => i.listing.condition === 'new' && titleHasModel(i.listing.title, model) && i.token);
-  const withReviews = pickReviewSource(candidates.map((c) => ({ avg: c.avg, n: c.n, item: c })));
-  return withReviews?.item ?? candidates[0] ?? null;
+// Picks the product page to read ratings and reviews from. Cards for one product carry the same big review count,
+// but each card's average can differ a lot (an eBay seller's card showed 3.7 stars for a 4.5-star headphone), and a
+// single seller's card can have a handful of ratings. So: keep the main cards (at least half the largest review count),
+// take the median rating among them, and use the trusted-retailer card closest to it (any main card if none is trusted).
+export function pickProduct(items: ShoppingItem[], model: string, trusted: string[] = []): ShoppingItem | null {
+  const all = items.filter((i) => i.listing.condition === 'new' && titleHasModel(i.listing.title, model) && i.token);
+  const rated = all.filter((i) => i.avg != null && i.n != null && i.n > 0);
+  if (!rated.length) return all[0] ?? null;
+  const biggest = Math.max(...rated.map((i) => i.n as number));
+  const main = rated.filter((i) => (i.n as number) >= biggest / 2);
+  const ratings = main.map((i) => i.avg as number).sort((a, b) => a - b);
+  const mid = Math.floor(ratings.length / 2);
+  const median = ratings.length % 2 ? ratings[mid] : (ratings[mid - 1] + ratings[mid]) / 2;
+  const names = new Set(trusted.map((t) => t.toLowerCase()));
+  const pool = main.filter((i) => names.has(i.listing.merchant.toLowerCase()));
+  return [...(pool.length ? pool : main)].sort((a, b) =>
+    Math.abs((a.avg as number) - median) - Math.abs((b.avg as number) - median) || (b.n as number) - (a.n as number))[0];
 }
 
 export function createSerpApi(options: { apiKey?: string; fetcher?: typeof fetch; timeoutMs?: number }): SerpApi | undefined {
@@ -108,7 +127,45 @@ export function createSerpApi(options: { apiKey?: string; fetcher?: typeof fetch
     async productDetail(token) {
       return toProductDetail(await call({ engine: 'google_immersive_product', page_token: token }));
     },
+    async productReviews(brand, model) {
+      const search = await call({ engine: 'walmart', query: `${brand} ${model}`.trim() });
+      const id = pickWalmartProduct(Array.isArray(search.organic_results) ? search.organic_results : [], model);
+      if (!id) return [];
+      // Lowest-rated first, because that is where failures show up; highest-rated for what lasted.
+      const pages = await Promise.all(['rating-asc', 'rating-desc'].map((sort) =>
+        call({ engine: 'walmart_product_reviews', product_id: id, sort }).catch((): Raw => ({}))));
+      return toWalmartReviews(pages.flatMap((p) => (Array.isArray(p.reviews) ? p.reviews : [])));
+    },
   };
+}
+
+// The Walmart listing with the most ratings that is new, not restored or open-box, and matches the model.
+export function pickWalmartProduct(results: Raw[], model: string): string | null {
+  const usable = results.filter((r) => typeof r.title === 'string' && titleHasModel(r.title, model)
+    && !/restored|refurb|open[ -]?box|used|pre-?owned|renewed|for parts/i.test(r.title) && num(r.reviews) != null && r.reviews > 0 && r.us_item_id);
+  usable.sort((a, b) => (b.reviews as number) - (a.reviews as number));
+  return usable[0] ? String(usable[0].us_item_id) : null;
+}
+
+export function toWalmartReviews(raw: Raw[]): OwnerReview[] {
+  const seen = new Set<string>();
+  const out: OwnerReview[] = [];
+  for (const r of raw) {
+    const rating = num(r?.rating);
+    const text = [r?.title, r?.text].filter((t) => typeof t === 'string' && t.trim()).join('. ').trim();
+    if (rating == null || rating < 1 || rating > 5 || !text || seen.has(text)) continue;
+    seen.add(text);
+    out.push({ rating, text });
+  }
+  return out;
+}
+
+// Google's results for the same words change from run to run, and a discontinued model may show no trusted store
+// at all. When the first search finds none, these other wordings are tried and merged (each one cached on its own).
+export function buildFallbackQueries(p: { brand: string; model: string; category: string; name: string }): string[] {
+  if (!p.model.trim()) return [];
+  const base = [p.brand, p.model].map((s) => s.trim()).filter(Boolean).join(' ');
+  return [`${base} wireless ${p.category.trim()}`.trim(), `${base} ${p.category.trim()} new`.trim()];
 }
 
 // Plain "brand model" returns junk marketplace results; adding the category finds real retailers.

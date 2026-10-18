@@ -1,5 +1,5 @@
 import type { AnalysisOutput } from '../analysis/gemini.js';
-import { buildQuery, ListingsError, pickProduct, type ProductDetail, type SerpApi } from '../listings/serpapi.js';
+import { buildFallbackQueries, buildQuery, ListingsError, mergeItems, pickProduct, type ProductDetail, type SerpApi } from '../listings/serpapi.js';
 import { loadScoringConfig, type ScoringConfig } from './config.js';
 import type { Demo } from './demo.js';
 import { effectivePrice, scorePrice } from './price.js';
@@ -33,20 +33,36 @@ export function createScorer(deps: ScorerDeps): ScoreProduct {
     const product = { model: analysis.model, name: analysis.name };
 
     // Keyed by product, not by query text, so "WH-1000XM5" and "WH1000XM5" read the same results.
-    const items = await deps.serp.searchShopping(buildQuery(analysis),
-      alnum(analysis.model) ? `product:${productKey(analysis.brand, analysis.model)}` : undefined);
-    const picked = pickProduct(items, analysis.model);
+    const cacheKey = alnum(analysis.model) ? `product:${productKey(analysis.brand, analysis.model)}` : undefined;
+    let items = await deps.serp.searchShopping(buildQuery(analysis), cacheKey);
+    // No trusted store in the results: try other wordings and merge, because the same search can return different stores.
+    const fallbacks = buildFallbackQueries(analysis);
+    for (let i = 0; i < fallbacks.length && !scorePrice(items.map((x) => x.listing), product, cfg).vouched; i++) {
+      const more = await deps.serp.searchShopping(fallbacks[i], cacheKey && `${cacheKey}:q${i + 2}`).catch(() => []);
+      items = mergeItems(items, more);
+    }
+    const picked = pickProduct(items, analysis.model, cfg.price.trusted_retailers);
 
     // The quality call starts as soon as the detail call returns, alongside price and timing.
     const detailPromise: Promise<ProductDetail | null> = picked?.token
       ? deps.serp.productDetail(picked.token).catch(() => null) : Promise.resolve(null);
-    const qualityPromise = detailPromise.then((d) => d
-      ? withTimeout(deps.quality.assess(analysis, { reviews: d.reviews, expertSnippets: d.expertSnippets, breakdown: d.breakdown }), cfg.quality.gemini_timeout_ms + 1000)
-      : null).catch(() => null);
+    const qualityPromise = detailPromise.then(async (d) => {
+      if (!d) return null;
+      let reviews = d.reviews;
+      // Google's detail call returns about 6 reviews. Below the threshold, top up with Walmart's, then merge.
+      if (reviews.length < cfg.quality.fallback_below_reviews) {
+        const more = await deps.serp!.productReviews(analysis.brand, analysis.model, cacheKey).catch(() => []);
+        const seen = new Set(reviews.map((r) => r.text));
+        reviews = [...reviews, ...more.filter((r) => !seen.has(r.text))];
+      }
+      return withTimeout(deps.quality.assess(analysis, { reviews, expertSnippets: d.expertSnippets, breakdown: d.breakdown }), cfg.quality.gemini_timeout_ms + 1000);
+    }).catch(() => null);
 
     let price = scorePrice(items.map((i) => i.listing), product, cfg);
     // The sandbox store is only added beside a real store we vouch for, so a real store wins until the drop.
-    if (deps.demo && price.best && price.vouched) {
+    // Demo-only exception: a featured product gets it whenever any cleaned real listing exists (it then wins by price).
+    const featured = !!deps.demo?.isFeatured(analysis);
+    if (deps.demo && price.best && (price.vouched || featured)) {
       const real = price.cleaned.filter((l) => l.source !== 'sandbox');
       const sandbox = deps.demo.sandboxListing(
         { brand: analysis.brand, model: analysis.model, title: picked?.listing.title ?? analysis.name },

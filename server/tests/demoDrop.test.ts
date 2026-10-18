@@ -18,6 +18,7 @@ const ITEM = '11111111-1111-4111-8111-111111111111';
 const raw = (merchant: string, price: number) => ({ title: 'Sony WH-1000XM5 Wireless Headphones', source: merchant, extracted_price: price,
   delivery: 'Free delivery', rating: 4.7, reviews: 5000, immersive_product_page_token: 't', product_link: 'u' });
 const serp = (merchants: [string, number][]): SerpApi => ({
+  productReviews: async () => [],
   searchShopping: async () => merchants.map(([m, p]) => toShoppingItem(raw(m, p))!),
   productDetail: async () => toProductDetail({ product_results: { rating: 4.7, reviews: 5000,
     ratings: [{ stars: 1, amount: 100 }, { stars: 2, amount: 100 }, { stars: 3, amount: 200 }, { stars: 4, amount: 800 }, { stars: 5, amount: 3800 }],

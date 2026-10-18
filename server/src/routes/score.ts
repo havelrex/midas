@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { AnalysisError, validateOutput } from '../analysis/gemini.js';
 import { ListingsError } from '../listings/serpapi.js';
 import { requireUser, type VerifyToken } from '../middleware/requireUser.js';
-import type { Demo } from '../scoring/demo.js';
+import { loadScoringConfig } from '../scoring/config.js';
+import { normalizeFeatured, type Demo } from '../scoring/demo.js';
 import { DemoDropError, type DemoDrop } from '../scoring/demoDrop.js';
 import type { ScoreProduct } from '../scoring/scoreProduct.js';
 
@@ -10,7 +11,8 @@ export function scoreRouter(verifyToken: VerifyToken, score?: ScoreProduct, demo
   const router = Router();
   router.post('/score', requireUser(verifyToken), async (req, res, next) => {
     try {
-      const analysis = validateOutput(req.body);
+      const analysis = normalizeFeatured(loadScoringConfig('electronics').demo, validateOutput(req.body));
+      if (!analysis.model.trim()) { res.status(422).json({ error: 'Retake the photo: the exact model could not be read.' }); return; }
       if (!score) throw new ListingsError(503, 'Scoring is not configured.');
       res.json((await score(analysis)).output);
     } catch (error) {

@@ -68,10 +68,13 @@ export async function extractQualitySignals(
     const signals = parseSignals(text, reviews.length, experts.length);
     if (!signals) return null;
     // Both shares are set in code so the model can never influence the correction.
-    signals.sample_low_share = reviews.filter((r) => r.rating <= 3).length / reviews.length;
+    // Complaints are 1 and 2 stars. A 3-star rating is neutral, and some catalog cards are mostly 3-star, so counting
+    // them as complaints would punish a product for a quirk of its card.
+    signals.sample_low_share = reviews.filter((r) => r.rating <= 2).length / reviews.length;
     const b = data.breakdown;
     const all = b ? b[1] + b[2] + b[3] + b[4] + b[5] : 0;
-    signals.population_low_share = b && all > 0 ? (b[1] + b[2] + b[3]) / all : null;
+    signals.population_low_share = b && all > 0 ? (b[1] + b[2]) / all : null;
+    signals.population_total = b && all > 0 ? all : null;
     return signals;
   } catch { return null; }
 }
