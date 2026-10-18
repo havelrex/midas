@@ -13,6 +13,8 @@ export interface Config {
   stripeWebhookSecret?: string;
   checkoutWatcherEnabled: boolean;
   demoMode: boolean;
+  serpApiKey?: string;
+  cacheTtlMinutes?: number;
 }
 
 export class ConfigurationError extends Error {}
@@ -22,6 +24,10 @@ export function parseConfig(env: NodeJS.ProcessEnv): Config {
   if (!/^\d+$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65535) {
     throw new ConfigurationError('PORT must be an integer between 1 and 65535');
   }
+
+  // Scan results (listings, reviews, quality) are reused this long. Raise it before a demo to freeze an item.
+  const rawTtl = env.SCORE_CACHE_TTL_MINUTES?.trim() || '60';
+  if (!/^\d+$/.test(rawTtl) || Number(rawTtl) < 1) throw new ConfigurationError('SCORE_CACHE_TTL_MINUTES must be a positive integer');
 
   const supabaseUrl = env.SUPABASE_URL?.trim().replace(/\/+$/, '');
   try {
@@ -60,6 +66,8 @@ export function parseConfig(env: NodeJS.ProcessEnv): Config {
     port: Number(rawPort),
     geminiApiKey: env.GEMINI_API_KEY?.trim() || undefined,
     geminiModel: env.GEMINI_MODEL?.trim() || 'gemini-3.5-flash-lite',
+    serpApiKey: env.SERPAPI_KEY?.trim() || undefined,
+    cacheTtlMinutes: Number(rawTtl),
     supabaseUrl: supabaseUrl!,
     supabaseAnonKey,
     supabaseServiceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY?.trim() || undefined,

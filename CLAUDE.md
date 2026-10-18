@@ -21,8 +21,11 @@ leftover references when you touch those files.)
 - Review analysis: Gemini API (text) on review text for the quality sub-score. Owner: Havel.
   Separate prompt from image analysis; same server-side key. Use `@google/genai`, the same
   model as Caleb's call (currently `gemini-2.5-flash`), `temperature: 0`, and `responseSchema`.
-- Listings and reviews: SerpAPI (Google Shopping + `google_immersive_product` detail call) and eBay Browse API.
-  Fallback for thin review text: SerpAPI Walmart or Amazon review engines.
+- Listings and reviews: SerpAPI (Google Shopping + `google_immersive_product` detail call). Search brand + model +
+  category (e.g. "Sony WH-1000XM5 Headphones"); brand + model alone returns junk marketplace results.
+  eBay Browse API is deferred (access takes a business day), so SerpAPI is the only listings source for now.
+  Fallback for thin review text: SerpAPI Walmart or Amazon review engines (not built yet).
+  The detail call returns about 6 owner reviews and the star breakdown, but no expert snippets.
 - Checkout: Stripe test mode with a fake merchant we add. Saved card, charged off-session with a
   PaymentIntent for buy-at-target.
 - Push: Expo Notifications (APNs). Push only works on a real iPhone.
@@ -72,12 +75,15 @@ Mac only (Havel's build machine):
 - /ios                native Xcode project (generated; edit through app.json/config plugins when possible)
 - /app/screens        signin, camera, item-detail, library, checkout, profile
 - /app/components     ScoreCard (swipe + tap), SubscoreRow
-- /server/analysis    Gemini vision client (Caleb)
-- /server/listings    SerpAPI + eBay clients, normalized output, listing cleaning, best listing, review fetch
-- /server/scoring     four sub-scores, quality Gemini text call, weights, verdict, reason strings
+- /server/src/analysis    Gemini vision client (Caleb)
+- /server/src/listings    SerpAPI client (eBay deferred), normalized output, listing cleaning, disk-cached wrapper
+- /server/src/scoring     four sub-scores, quality Gemini text call, composer, demo sandbox, orchestrator, reason strings
+- /server/src/routes      /analyze, /score, /demo/price-drop (DEMO_MODE only)
 - /server/config/weights/   electronics.json, default.json (weights, tuning constants, sale events, trusted retailers)
 - /server/data/price-history/   seeded 90-day history, one JSON file per stage item
-- /server/checkout    Stripe client, buy-now, buy-at-target automation
+- /server/data/cache/   scan cache (gitignored)
+- /server/scripts     `npm run try:*` terminal checks for each sub-score and the demo story
+- /server/src/checkout    Stripe client, buy-now, buy-at-target automation (Pedro, not built yet)
 - /context            LOCAL ONLY, must be in .gitignore (never commit it). The scoring spec lives here, one
                       file per sub-score: quality-subscore.md, price-subscore.md, reviews-subscore.md, timing-subscore.md
 
@@ -147,11 +153,26 @@ checkout_status ("none" | "watching" | "purchased")`
   The trusted retailer list is about reliability only.
 - Clamp every sub-score to 0 to 100.
 
-### Missing data
+### Missing and thin data
 - Fewer listings, reviews, or history than the spec wants: still score, set `data_quality: "limited"`,
-  use the limited-data reason string.
-- No usable data at all: set that sub-score to null and renormalize weights within its axis
-  (quality missing -> reviews carries the item axis, etc.).
+  use the limited-data reason string. `limited` is a label; it does not change weights by itself.
+- Thin data is handled continuously, never with a hard cutoff, and differently per sub-score:
+  - Reviews: the Bayesian shrink already covers it. Do not downweight it again.
+  - Quality: shrink the failure and praise rates toward category priors with `n / (n + trust_halfway)`.
+    Weight stays fixed. Expert cons are a count, not a rate, so they are not shrunk.
+  - Price and timing: reduce the weight. Shrinking toward 50 would claim "normal price", which we don't know.
+    `confidence.price = min(1, cleanedListings / price_full_trust_listings)`,
+    `confidence.timing = min(1, historyDays / timing_full_trust_days)`.
+    Within an axis each sub-score's share is base weight x confidence, so a thin price lets timing carry more.
+    The axis keeps its full weight if any member has confidence 1, and shrinks with its best member's
+    confidence otherwise (both deal sub-scores thin means the item axis counts for more). If a whole axis
+    has confidence 0, renormalize across the remaining sub-scores.
+- No usable data at all: set that sub-score to null. This is confidence 0, so the same renormalization
+  applies (quality missing -> reviews carries the item axis, etc.).
+- Verdict cap: `buy_now` claims the price is at or near its low, so it never fires when price or timing
+  confidence is below `verdict.buy_now_min_confidence`. Fall back to `wait` and mark the result limited.
+- Confidence thresholds, quality priors, and the verdict floor live in `electronics.json`, with the other
+  tuning constants.
 - Never block the score card on a slow or failed call. The quality Gemini call failing or timing out
   is treated as no review text.
 
@@ -161,17 +182,37 @@ checkout_status ("none" | "watching" | "purchased")`
 - Gemini only counts (`failure_mentions`, `early_failure_mentions`, `durability_praise`,
   `expert_reliability_cons`, `evidence_quote`). It never rates the product.
 - Set `reviews_read` in code, not from the model.
-- Prioritize 1 to 3 star reviews; target 30 to 80. Under ~15 is limited.
+- Prioritize 1 to 3 star reviews; target 30 to 80. Under ~15 is limited. The detail call only returns about
+  6 reviews, so most items will be limited until a second review source is added.
+- That sample is skewed toward failures, so rescale the failure rate by (real 1-3 star share / sample 1-3 star
+  share) and the praise rate by the matching 4-5 star shares, using the star breakdown, before shrinking.
+  Both shares are set in code. Skip the rescale when the breakdown is missing.
+- Shrink failure and praise rates toward category priors by `n / (n + trust_halfway)` before scoring, so
+  thin review data lands near a typical score instead of a random extreme.
 - Cache results by `brand + model`. The stage item must never change score between runs.
+- The cache is on disk (`server/data/cache/`, gitignored), so it survives restarts. It holds the SerpAPI search,
+  the detail call, and the quality result. Keys ignore case, spacing, and punctuation, so `WH-1000XM5` and
+  `WH1000XM5` share one entry. Entries last `SCORE_CACHE_TTL_MINUTES` (default 60); raise it and scan the item
+  once before a demo to freeze it. `npm run cache:clear` (in /server) empties it. Failures are never cached.
+  This is a normal cache, not a demo path: `DEMO_MODE` still controls only the sandbox listing and the price drop.
 - Start the Gemini call in parallel with price and timing as soon as the detail call returns.
 - Never claim a lifespan in a reason string.
 
 ### Price (spec: context/price-subscore.md)
-- Fetch Google Shopping and eBay (new only) in parallel, plus the sandbox listing in demo mode.
+- Fetch Google Shopping, plus the sandbox listing in demo mode. Used items are detected from SerpAPI's
+  `second_hand_condition`. Delivery text sets shipping; unknown shipping counts as free.
 - Clean before anything else: drop listings without the model number in the title, non-new, below
-  0.5x median, or above 2x median. Under 3 survivors is limited.
+  0.7x median, or above 2x median. Under 3 survivors is limited. The low bound was 0.5x, but a live run let a
+  $150 scam site through against a $296 median, so it was raised to 0.7x. The sandbox listing is exempt from
+  these bounds because it is our own controlled listing.
 - Pick `best_listing` by effective price (price + shipping + seller risk penalty). The penalty is for
   ranking only; the user sees and pays the real price.
+- Only a vouched-for seller can be `best_listing`: a trusted retailer (exact name match, so third-party
+  sellers on a marketplace do not inherit trust) or a known rating of 4 stars or more. Unknown merchants
+  still count toward the median. The sandbox store is always eligible but wins only by being cheapest.
+  If no seller is vouched for, fall back to the cheapest overall, set `data_quality: "limited"`, and cap
+  price confidence at 0.5 so `buy_now` cannot fire. Demo mode only adds the sandbox store next to a
+  vouched-for real store.
 - Reference price = median of cleaned price + shipping, excluding `source: "sandbox"`.
 - Tax is ignored.
 - Used/refurbished are out of the score for the hackathon.

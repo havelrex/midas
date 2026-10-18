@@ -10,5 +10,6 @@ export function createDummySnap(photoUri: string): Snap {
     name: `[TEST] ${sample.name}`, summary: 'Shared sample data for sandbox testing only.', confidence: 1,
   }, scoreStatus: 'ready', score: {
     score: sample.score, verdict: sample.verdict, subscores: sample.subscores, best_listing: sample.best_listing,
+    suggested_target_price: sample.verdict === 'wait' ? sample.target_price : null,
   } };
 }
