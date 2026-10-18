@@ -10,8 +10,10 @@ import { colors } from '../lib/theme';
 import UndoBar from '../components/UndoBar';
 import { type ScoreStatus, type Snap, useSaveSnap } from '../features/library/useSaveSnap';
 import { ItemDetailView } from './ItemDetailScreen';
+import { createDummySnap, DUMMY_TARGET_PRICE, TEST_TOOLS_ENABLED } from '../testing/dummySnap';
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   Image,
   Linking,
@@ -212,7 +214,9 @@ export default function CameraScreen() {
     name: snap.analysis.name, summary: snap.analysis.summary, category: snap.analysis.category,
     brand: snap.analysis.brand, model: snap.analysis.model,
     score: Math.round(snap.score.score), subscores: snap.score.subscores, verdict: snap.score.verdict,
-    best_listing: snap.score.best_listing, target_price: null, checkout_status: 'none',
+    best_listing: snap.score.best_listing,
+    target_price: TEST_TOOLS_ENABLED && snap.analysis.model === 'TEST-HEADPHONES-001' ? DUMMY_TARGET_PRICE : null,
+    checkout_status: 'none',
   } : null;
 
   return (
@@ -221,16 +225,26 @@ export default function CameraScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Midas</Text>
         <Text style={styles.hint}>{photoUri ? 'Photo captured' : 'Center one product in the frame'}</Text>
+        {TEST_TOOLS_ENABLED && <>
+          <Text style={styles.testLabel}>TEST MODE - fictional item available</Text>
+          <Pressable accessibilityRole="button" style={styles.button} onPress={() => {
+            captureInProgress.current = false;
+            setCapturing(false);
+            const uri = Image.resolveAssetSource(require('../../assets/icon.png'))?.uri;
+            if (!uri) { setError('Test placeholder image could not be loaded.'); return; }
+            showSnap(createDummySnap(uri));
+          }}><Text style={styles.buttonText}>Load dummy item</Text></Pressable>
+        </>}
       </View>
 
-      {!permission ? (
+      {!photoUri && !permission ? (
         <View style={styles.message}><ActivityIndicator color="#fff" /><Text style={styles.hint}>Checking camera permission…</Text></View>
-      ) : !permission.granted ? (
+      ) : !photoUri && !permission?.granted ? (
         <View style={styles.message}>
           <Text style={styles.title}>Camera access needed</Text>
           <Text style={styles.hint}>Allow camera access to take a photo of a product.</Text>
           <Pressable accessibilityRole="button" style={styles.button} onPress={enableCamera}>
-            <Text style={styles.buttonText}>{permission.canAskAgain ? 'Allow camera access' : 'Open Settings'}</Text>
+            <Text style={styles.buttonText}>{permission?.canAskAgain ? 'Allow camera access' : 'Open Settings'}</Text>
           </Pressable>
         </View>
       ) : (
@@ -302,7 +316,7 @@ export default function CameraScreen() {
           onExpire={() => saver.dismiss(saver.banner!.id)}
         />
       )}
-      {permission?.granted && <View style={styles.controls}>
+      {(permission?.granted || photoUri) && <View style={styles.controls}>
         {photoUri ? (
           <Pressable accessibilityRole="button" style={styles.button} onPress={resetSnap}>
             <Text style={styles.buttonText}>Retake photo</Text>
@@ -327,7 +341,13 @@ export default function CameraScreen() {
             <Text style={styles.sheetDone}>Done</Text>
           </Pressable>
         </View>
-        {draft && <ItemDetailView item={draft} onCheckout={() => console.warn('TODO(Pedro): checkout from an unsaved snap')} />}
+        {draft && <ItemDetailView item={draft} onCheckout={() => {
+          if (TEST_TOOLS_ENABLED && draft.model === 'TEST-HEADPHONES-001') {
+            Alert.alert('Test checkout handoff', 'Fixture: $120 total, $90 target. Stripe is not connected on this branch yet. Save the item first when testing checkout that requires a database ID.');
+          } else {
+            console.warn('TODO(Pedro): checkout from an unsaved snap');
+          }
+        }} />}
       </Modal>
     </SafeAreaView>
   );
@@ -335,6 +355,7 @@ export default function CameraScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000' },
+  testLabel: { color: '#ffcc00', fontSize: 13, textAlign: 'center' },
   result: { padding: 16, gap: 8 },
   header: { alignItems: 'center', padding: 16, gap: 8 },
   title: { color: '#fff', fontSize: 22, fontWeight: '600', textAlign: 'center' },

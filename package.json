@@ -8,6 +8,7 @@
   "scripts": {
     "start": "expo start --dev-client --tunnel",
     "start:camera": "expo start --dev-client --tunnel=ngrok",
+    "start:test": "node scripts/start-test.cjs",
     "ios": "expo start --dev-client --ios",
     "typecheck": "tsc --noEmit"
   },
