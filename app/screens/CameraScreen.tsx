@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { StatusBar } from 'expo-status-bar';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { apiFetch } from '../lib/apiFetch';
+import type { AnalysisOutput } from '../../shared/contracts';
 import {
   ActivityIndicator,
   AppState,
@@ -17,6 +20,7 @@ export default function CameraScreen() {
   const camera = useRef<CameraView>(null);
   const captureInProgress = useRef(false);
   const session = useRef(0);
+  const analysisRequest = useRef<AbortController | null>(null);
   const mounted = useRef(false);
   const appState = useRef(AppState.currentState);
   const [permission, requestPermission, refreshPermission] = useCameraPermissions();
@@ -24,6 +28,8 @@ export default function CameraScreen() {
   const [ready, setReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisOutput | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState(false);
   const [cameraKey, setCameraKey] = useState(0);
@@ -35,6 +41,8 @@ export default function CameraScreen() {
       if (state === appState.current) return;
       appState.current = state;
       session.current += 1;
+      analysisRequest.current?.abort();
+      setAnalyzing(false);
       captureInProgress.current = false;
       setCapturing(false);
       setActive(state === 'active');
@@ -49,6 +57,7 @@ export default function CameraScreen() {
     });
     return () => {
       mounted.current = false;
+      analysisRequest.current?.abort();
       session.current += 1;
       subscription.remove();
     };
@@ -69,6 +78,7 @@ export default function CameraScreen() {
     captureInProgress.current = true;
     setCapturing(true);
     setError(null);
+    setAnalysis(null);
     const currentSession = session.current;
     try {
       const photo = await camera.current.takePictureAsync({ quality: 0.7 });
@@ -76,6 +86,7 @@ export default function CameraScreen() {
       if (!photo?.uri) throw new Error('No photo returned');
       setReady(false);
       setPhotoUri(photo.uri);
+      void identifyPhoto(photo.uri, currentSession);
     } catch {
       if (currentSession === session.current) {
         setError('Could not take the photo. Please try again.');
@@ -86,6 +97,32 @@ export default function CameraScreen() {
         captureInProgress.current = false;
         setCapturing(false);
       }
+    }
+  }
+
+  async function identifyPhoto(uri: string, currentSession: number) {
+    const controller = new AbortController();
+    analysisRequest.current?.abort();
+    analysisRequest.current = controller;
+    setAnalyzing(true);
+    const timeout = setTimeout(() => controller.abort(), 40_000);
+    try {
+      const photo = await manipulateAsync(uri, [{ resize: { width: 1280 } }], {
+        compress: 0.7, format: SaveFormat.JPEG, base64: true,
+      });
+      if (controller.signal.aborted || currentSession !== session.current) return;
+      const result = await apiFetch<AnalysisOutput>('/analyze', {
+        method: 'POST', signal: controller.signal,
+        body: JSON.stringify({ imageBase64: photo.base64, mimeType: 'image/jpeg' }),
+      });
+      if (mounted.current && currentSession === session.current) setAnalysis(result);
+    } catch {
+      if (mounted.current && currentSession === session.current) {
+        setError('Could not identify the product. Check your connection and retry or retake.');
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (mounted.current && analysisRequest.current === controller) setAnalyzing(false);
     }
   }
 
@@ -139,10 +176,25 @@ export default function CameraScreen() {
         </View>
       )}
 
+      {analyzing && <View style={styles.result}><ActivityIndicator color="#fff" /><Text style={styles.hint}>Identifying product...</Text></View>}
+      {analysis && <View style={styles.result}>
+        <Text style={styles.title}>{analysis.name || 'Product not identified'}</Text>
+        <Text style={styles.hint}>{[analysis.brand, analysis.model].filter(Boolean).join(' · ')}</Text>
+        <Text style={styles.hint}>{analysis.summary}</Text>
+        {!analysis.model && <Text style={styles.hint}>Exact model unknown. Retake with the model label visible.</Text>}
+      </View>}
       {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+      {photoUri && !analyzing && !analysis && <Pressable accessibilityRole="button" style={styles.button} onPress={() => {
+        setError(null);
+        void identifyPhoto(photoUri, session.current);
+      }}><Text style={styles.buttonText}>Retry identification</Text></Pressable>}
       {permission?.granted && <View style={styles.controls}>
         {photoUri ? (
           <Pressable accessibilityRole="button" style={styles.button} onPress={() => {
+            session.current += 1;
+            analysisRequest.current?.abort();
+            setAnalyzing(false);
+            setAnalysis(null);
             setReady(false);
             setPhotoUri(null);
             setError(null);
@@ -166,6 +218,7 @@ export default function CameraScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000' },
+  result: { padding: 16, gap: 8 },
   header: { alignItems: 'center', padding: 16, gap: 8 },
   title: { color: '#fff', fontSize: 22, fontWeight: '600', textAlign: 'center' },
   hint: { color: '#ccc', fontSize: 16, textAlign: 'center' },

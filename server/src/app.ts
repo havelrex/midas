@@ -3,8 +3,10 @@ import { errorHandler, type Logger } from './middleware/errorHandler.js';
 import type { VerifyToken } from './middleware/requireUser.js';
 import { healthRouter } from './routes/health.js';
 import { meRouter } from './routes/me.js';
+import { analyzeRouter } from './routes/analyze.js';
+import type { AnalyzeImage } from './analysis/gemini.js';
 
-export function createApp(options: { verifyToken: VerifyToken; logger?: Logger }) {
+export function createApp(options: { verifyToken: VerifyToken; logger?: Logger; analyze?: AnalyzeImage }) {
   const app = express();
   const logger = options.logger ?? console;
   app.disable('x-powered-by');
@@ -24,6 +26,7 @@ export function createApp(options: { verifyToken: VerifyToken; logger?: Logger }
   const api = Router();
   api.use(express.json({ limit: '10mb' }));
   api.use(meRouter(options.verifyToken));
+  api.use(analyzeRouter(options.verifyToken, options.analyze));
   // Mount future analysis, listings, scoring, and checkout routers here.
   app.use(api);
 

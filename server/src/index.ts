@@ -1,10 +1,12 @@
 import { createApp } from './app.js';
+import { createGeminiAnalyzer } from './analysis/gemini.js';
 import { ConfigurationError, loadConfig } from './config/env.js';
 import { createUserVerifier } from './middleware/requireUser.js';
 
 try {
   const config = loadConfig();
-  const app = createApp({ verifyToken: createUserVerifier(config) });
+  const app = createApp({ verifyToken: createUserVerifier(config),
+    analyze: createGeminiAnalyzer({ apiKey: config.geminiApiKey, model: config.geminiModel }) });
   const server = app.listen(config.port, '0.0.0.0', () => {
     console.info(`Snap & Score API listening on port ${config.port}`);
   });

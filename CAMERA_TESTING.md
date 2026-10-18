@@ -1,8 +1,8 @@
 # Camera build handoff
 
 The camera screen opens after Supabase sign-in. It supports permission requests,
-rear-camera preview, capture, photo preview, and retake. Image analysis is not
-connected yet.
+rear-camera preview, capture, photo preview, and retake. Gemini identification
+now runs after capture; see `server/README.md` for backend setup.
 
 ## Havel: prepare the iPhone build on your Mac
 
@@ -49,5 +49,7 @@ For a standalone TestFlight build, launch the app directly; Metro is not needed.
 - Deny camera access in iOS Settings, reopen the app, and verify the Settings
   recovery button. Restore permission and confirm the preview returns.
 
-No Gemini key or backend is needed for this camera-only milestone. Captures use
-the app cache and are not uploaded or saved to the library.
+A Gemini key and reachable backend are needed for identification. Camera capture
+and retake still work when the backend is unavailable. Captures use the app cache;
+compressed copies are sent to the backend and Gemini for identification, but are
+not saved to the library. Use ordinary product photos when testing.
