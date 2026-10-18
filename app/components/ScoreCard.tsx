@@ -29,6 +29,21 @@ interface Props {
 const COMMIT_DISTANCE = 120;
 const COMMIT_VELOCITY = 0.8;
 
+// What a released drag does. Left or down saves (toward the Library button); right or up deletes.
+// Short, slow drags and saves that aren't allowed yet spring back.
+export function swipeOutcome(
+  g: { dx: number; dy: number; vx: number; vy: number },
+  canSave: boolean,
+): 'save' | 'delete' | 'cancel' {
+  const horizontal = Math.abs(g.dx) >= Math.abs(g.dy);
+  const distance = horizontal ? g.dx : g.dy;
+  const velocity = horizontal ? g.vx : g.vy;
+  if (Math.abs(distance) < COMMIT_DISTANCE && Math.abs(velocity) < COMMIT_VELOCITY) return 'cancel';
+  const save = horizontal ? distance < 0 : distance > 0;
+  if (save && !canSave) return 'cancel';
+  return save ? 'save' : 'delete';
+}
+
 // The card that appears after a snap. JS-only gestures (PanResponder + Animated), so no native build.
 export default function ScoreCard({ photoUri, analysis, score, status, onSave, onDelete, onOpen, onRetry }: Props) {
   const { width, height } = useWindowDimensions();
@@ -52,18 +67,14 @@ export default function ScoreCard({ photoUri, analysis, score, status, onSave, o
       onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
       onPanResponderTerminate: springBack,
       onPanResponderRelease: (_e, g) => {
-        const horizontal = Math.abs(g.dx) >= Math.abs(g.dy);
-        const distance = horizontal ? g.dx : g.dy;
-        const velocity = horizontal ? g.vx : g.vy;
-        if (Math.abs(distance) < COMMIT_DISTANCE && Math.abs(velocity) < COMMIT_VELOCITY) return springBack();
-
-        // Left or down saves (toward the Library button); right or up deletes.
-        const save = horizontal ? distance < 0 : distance > 0;
         const { canSave: allowed, onSave: saveCard, onDelete: deleteCard } = latest.current;
-        if (save && !allowed) return springBack();
+        const outcome = swipeOutcome(g, allowed);
+        if (outcome === 'cancel') return springBack();
 
-        const sign = Math.sign(distance) || 1;
-        flyOut(horizontal ? sign * width * 1.5 : 0, horizontal ? g.dy : sign * height, save ? saveCard : deleteCard);
+        // Fly off in the direction of the drag.
+        const horizontal = Math.abs(g.dx) >= Math.abs(g.dy);
+        const sign = Math.sign(horizontal ? g.dx : g.dy) || 1;
+        flyOut(horizontal ? sign * width * 1.5 : 0, horizontal ? g.dy : sign * height, outcome === 'save' ? saveCard : deleteCard);
       },
     });
   }, [pan, width, height]);
