@@ -9,7 +9,15 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "try:reviews": "tsx scripts/try.ts reviews",
+    "try:timing": "tsx scripts/try.ts timing",
+    "try:quality": "tsx scripts/try.ts quality",
+    "try:price": "tsx scripts/try.ts price",
+    "try:score": "tsx scripts/try.ts score",
+    "try:live": "tsx scripts/try.ts live",
+    "try:demo": "tsx scripts/try.ts demo",
+    "cache:clear": "node -e \"require('fs').rmSync('data/cache',{recursive:true,force:true})\""
   },
   "dependencies": {
     "@google/genai": "^2.30.0",

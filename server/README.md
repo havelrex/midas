@@ -1,4 +1,4 @@
-# Snap & Score API
+# Midas API
 
 Small TypeScript/Express backend for the iOS app. This foundation provides startup,
 Supabase authentication, JSON errors, and tests. Listing search, scoring,
@@ -67,8 +67,8 @@ No UI or native build change is required by this backend foundation.
 
 Add `GEMINI_API_KEY` to the repository-root `.env`, not `.env.example`.
 Optionally set `GEMINI_MODEL` (default `gemini-3.5-flash-lite`). Restart the API
-after changing these values. This implementation calls Google's REST API and
-adds no SDK dependency. Never put the Gemini key in an `EXPO_PUBLIC_` variable.
+after changing these values. Product identification calls Google's REST API
+directly; the scoring quality call uses `@google/genai`. Never put the Gemini key in an `EXPO_PUBLIC_` variable.
 
 `POST /analyze` requires a Supabase bearer token and JSON:
 
@@ -107,6 +107,24 @@ npm start
 Stop the dev server before starting the compiled server on the same port.
 Ctrl+C/SIGTERM drains requests, with a ten-second shutdown deadline.
 Run `npm run typecheck` from the repository root separately to check the mobile app.
+
+## Scoring
+
+`POST /score` (bearer token required) takes the `/analyze` output and returns a `ScoreOutput` from
+`shared/contracts.ts`: score, verdict, four sub-scores (each may be `null`), `best_listing`,
+`suggested_target_price`, and `verdict_capped` (true when a Buy now was downgraded to Wait because price or
+timing data was too thin). It needs `SERPAPI_KEY`; Gemini (quality) is optional and a failure only nulls quality.
+
+- All tuning constants live in `config/weights/electronics.json`. The seeded price history for the stage item
+  is in `data/price-history/`.
+- Listings, reviews, and quality results are cached on disk in `data/cache/` (gitignored) for
+  `SCORE_CACHE_TTL_MINUTES` (default 60). Raise it and scan an item once to freeze it. `npm run cache:clear` empties it.
+- `DEMO_MODE=true` adds the sandbox merchant listing and enables `POST /demo/price-drop`
+  (`{ brand, model, target_price? }`). It controls nothing else.
+- Terminal checks (run from `/server`): `npm run try:reviews -- 4.7 5000`, `try:timing -- 279 259 329`,
+  `try:quality -- 60 6 3 11 1`, `try:price`, `try:score` (offline, whole pipeline with a price drop),
+  `try:live -- Sony WH-1000XM5 Headphones` (real SerpAPI and Gemini), and `try:demo` (the stage story on live data).
+- The specs behind the scores are local notes in `/context` (gitignored); `CLAUDE.md` has the team-visible rules.
 
 ## Add features
 
