@@ -116,7 +116,9 @@ export default function CameraScreen() {
         body: JSON.stringify({ imageBase64: photo.base64, mimeType: 'image/jpeg' }),
       });
       if (mounted.current && currentSession === session.current) setAnalysis(result);
-    } catch {
+    } catch (e) {
+      // Shows in the Metro terminal: network failure, timeout, or the server's status code.
+      console.warn('analyze failed:', e instanceof Error ? e.message : e);
       if (mounted.current && currentSession === session.current) {
         setError('Could not identify the product. Check your connection and retry or retake.');
       }
