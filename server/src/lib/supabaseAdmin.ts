@@ -1,9 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
+import { ConfigurationError, type Config } from '../config/env.js';
 
-// Service-role client: bypasses RLS. Server-only (automation, purchase updates).
-// Never ship this key to the mobile app.
-export const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false, autoRefreshToken: false } },
-);
+// Call once when wiring future automation. This privileged client bypasses RLS;
+// ordinary authentication uses an anon-key client instead.
+export function createSupabaseAdmin(config: Config) {
+  if (!config.supabaseServiceRoleKey) {
+    throw new ConfigurationError('SUPABASE_SERVICE_ROLE_KEY is required for admin operations');
+  }
+  return createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
