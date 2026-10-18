@@ -34,7 +34,7 @@ npm.cmd run start:camera
 
 Set the same public Supabase variables locally before starting Metro. Install
 the team's iPhone build and open its development server link or scan the QR
-code. Use Snap & Score, not Expo Go. The ngrok tunnel avoids the signed Expo
+code. Use Midas (the TestFlight dev build), not Expo Go. The ngrok tunnel avoids the signed Expo
 tunnel login problem encountered on this Windows machine.
 
 For a standalone TestFlight build, launch the app directly; Metro is not needed.

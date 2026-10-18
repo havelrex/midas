@@ -61,7 +61,7 @@ export default function SignInScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.title} accessibilityRole="header">
-            Snap <Text style={styles.amp}>&</Text> Score
+            Midas
           </Text>
           <Text style={styles.subtitle}>Snap an item. Know if it's worth buying.</Text>
         </View>
@@ -146,7 +146,6 @@ const useStyles = themedStyles((colors) => ({
   container: { flex: 1, justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 16 },
   header: { gap: 8, alignItems: 'center' },
   title: { color: colors.label, fontSize: 40, fontWeight: '800', letterSpacing: -0.5, textAlign: 'center' },
-  amp: { color: colors.goodText },
   subtitle: { color: colors.secondaryLabel, fontSize: 17, lineHeight: 22, textAlign: 'center' },
   form: { gap: 16 },
   group: { backgroundColor: colors.cell, borderRadius: 12 },
