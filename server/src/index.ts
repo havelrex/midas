@@ -8,7 +8,10 @@ import { createUserVerifier } from './middleware/requireUser.js';
 import { createCheckout } from './checkout/createCheckout.js';
 import { startCheckoutWatcher } from './checkout/watcher.js';
 import { loadScoringConfig } from './scoring/config.js';
+import { createCheckoutStore } from './checkout/store.js';
+import { createSupabaseAdmin } from './lib/supabaseAdmin.js';
 import { createDemo } from './scoring/demo.js';
+import { createDemoDrop, createItemsPort } from './scoring/demoDrop.js';
 import { createGeminiGenerate } from './scoring/qualityExtract.js';
 import { createQualityService } from './scoring/qualityService.js';
 import { createScorer } from './scoring/scoreProduct.js';
@@ -25,10 +28,16 @@ try {
     cfg: scoring.quality, cache,
     generate: createGeminiGenerate({ apiKey: config.geminiApiKey, model: config.geminiModel!, timeoutMs: scoring.quality.gemini_timeout_ms }),
   });
+  const score = createScorer({ serp: serp && withCache(serp, cache), quality, demo });
+  // The demo drop also needs the database (service role) to update the checkout offer and the saved card.
+  const demoDrop = demo && config.supabaseServiceRoleKey ? (() => {
+    const db = createSupabaseAdmin(config);
+    return createDemoDrop({ demo, score, items: createItemsPort(db), store: createCheckoutStore(db) });
+  })() : undefined;
   const app = createApp({ verifyToken: createUserVerifier(config),
     checkout,
     analyze: createGeminiAnalyzer({ apiKey: config.geminiApiKey, model: config.geminiModel }),
-    score: createScorer({ serp: serp && withCache(serp, cache), quality, demo }), demo });
+    score, demo, demoDrop });
   let stopping = false;
   let stopWatcher: () => Promise<void> = async () => {};
   const server = app.listen(config.port, '0.0.0.0', () => {

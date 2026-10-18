@@ -122,8 +122,12 @@ timing data was too thin). It needs `SERPAPI_KEY`; Gemini (quality) is optional 
   is in `data/price-history/`.
 - Listings, reviews, and quality results are cached on disk in `data/cache/` (gitignored) for
   `SCORE_CACHE_TTL_MINUTES` (default 60). Raise it and scan an item once to freeze it. `npm run cache:clear` empties it.
-- `DEMO_MODE=true` adds the sandbox merchant listing and enables `POST /demo/price-drop`
-  (`{ brand, model, target_price? }`). It controls nothing else.
+- `DEMO_MODE=true` adds the sandbox merchant listing (the same store as checkout's offers) and enables the demo routes
+  (it also gates checkout's operator commands). `POST /demo/offer { item_id }` creates the item's sandbox offer at
+  the pre-drop price. `POST /demo/price-drop { item_id, target_price? }` drops the price in the item's checkout offer
+  (so the watcher charges the card), appends today's price to the history, and re-scores and updates the saved item.
+  `{ brand, model, target_price? }` without an item only changes scoring. Drops are written to
+  `data/cache/price-history/` (gitignored), never into the seed files.
 - Terminal checks (run from `/server`): `npm run try:reviews -- 4.7 5000`, `try:timing -- 279 259 329`,
   `try:quality -- 60 6 3 11 1`, `try:price`, `try:score` (offline, whole pipeline with a price drop),
   `try:live -- Sony WH-1000XM5 Headphones` (real SerpAPI and Gemini), and `try:demo` (the stage story on live data).
