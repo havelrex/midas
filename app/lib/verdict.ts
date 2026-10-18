@@ -1,4 +1,4 @@
-import type { SubScores, Verdict } from '../../shared/contracts';
+import type { SubScore, SubScores, Verdict } from '../../shared/contracts';
 import { verdictColors } from './theme';
 
 // Display labels differ from the enum so a verdict never reads like the "Buy now" purchase button.
@@ -11,7 +11,10 @@ export const VERDICT_DISPLAY: Record<Verdict, { label: string; color: string }> 
 
 // The one-line "why" under a verdict: the strongest sub-score for a good buy, the weakest otherwise.
 export function verdictReason(verdict: Verdict, subscores: SubScores): string {
-  const subs = Object.values(subscores).sort((a, b) => a.value - b.value);
+  const subs = Object.values(subscores)
+    .filter((s): s is SubScore => s !== null)
+    .sort((a, b) => a.value - b.value);
+  if (subs.length === 0) return '';
   return (verdict === 'buy_now' ? subs[subs.length - 1] : subs[0]).reason;
 }
 

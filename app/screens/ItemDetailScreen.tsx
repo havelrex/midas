@@ -190,6 +190,14 @@ export function ItemDetailView({
         <View style={styles.group}>
           {SUBSCORES.map(({ key, label }, i) => {
             const sub = item.subscores[key];
+            if (!sub) {
+              return (
+                <View key={key} style={[styles.subRow, i > 0 && styles.subRowDivider]}>
+                  <Text style={styles.subLabel}>{label}</Text>
+                  <Text style={styles.subReason}>Not enough data to score this</Text>
+                </View>
+              );
+            }
             return (
               <View key={key} style={[styles.subRow, i > 0 && styles.subRowDivider]}>
                 <View style={styles.subTop}>
