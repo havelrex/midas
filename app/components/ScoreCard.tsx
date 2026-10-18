@@ -185,13 +185,18 @@ export default function ScoreCard({ photoUri, analysis, score, status, onSave, o
                 </View>
               );
             })}
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel} numberOfLines={1}>
-                Best price · {score.best_listing.merchant}
-              </Text>
-              <Text style={styles.priceValue}>{formatPrice(score.best_listing.price + score.best_listing.shipping)}</Text>
-            </View>
+            {score.best_listing && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel} numberOfLines={1}>
+                  Best price · {score.best_listing.merchant}
+                </Text>
+                <Text style={styles.priceValue}>{formatPrice(score.best_listing.price + score.best_listing.shipping)}</Text>
+              </View>
+            )}
           </View>
+        )}
+        {status === 'no_listing' && (
+          <Text style={styles.secondary}>Couldn't find this for sale, so it can't be saved. Swipe right to delete.</Text>
         )}
         {status === 'unavailable' && (
           <Text style={styles.secondary}>Scoring isn't available yet, so this can't be saved. Swipe right to delete.</Text>

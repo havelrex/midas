@@ -121,6 +121,8 @@ Score output (Havel -> everyone):
 }
 ```
 - A sub-score that can't be computed is `null` (see "Missing data" below). UI must handle null sub-scores.
+- `best_listing` is null when no store sells the item new. The card then says so and blocks saving, because
+  `items.best_listing` is NOT NULL. A null listing must never reach the database.
 - `suggested_target_price` is the 90-day low when the verdict is `wait`, otherwise null.
   The checkout screen prefills `target_price` with it; the user can change it.
 
@@ -237,17 +239,29 @@ checkout_status ("none" | "watching" | "purchased")`
   send a push notification with the item and price.
 
 ## Demo mode
-One flag, `DEMO_MODE`, controls exactly two things and nothing else:
+One flag, `DEMO_MODE`, controls the demo-only behavior and nothing in normal scoring:
 1. Whether the sandbox merchant listing (`source: "sandbox"`) is added to listings.
-2. The manual price-drop trigger.
+2. The manual price-drop trigger (`POST /demo/offer` and `POST /demo/price-drop`).
+3. Checkout's operator-only commands (`npm run checkout:demo -- offer|price|demo`).
 
 How the demo works:
-- The sandbox merchant has a believable store name and starts priced slightly above the best real price,
-  so a real store wins and the stage item lands on Wait.
+- The sandbox merchant is the same store as checkout's (`MERCHANT` in `server/src/checkout/model.ts`, currently
+  "Cedar Electronics"), so the card's best listing and the checkout quote name one store. It starts priced slightly
+  above the best real price, so a real store wins and the stage item lands on Wait. It is only added next to a
+  trusted real store.
 - The price drop lowers the sandbox price below the user's target and below every real store.
   It becomes `best_listing` only by having the lowest price. Scoring code never forces it to win.
-- The dropped price is appended to the item's seeded history as today's entry, so reopening the item
-  shows timing at its 90-day low.
+- The dropped price is appended to the item's history as today's entry, so reopening the item shows timing at
+  its 90-day low. Drops are written to a gitignored overlay (`server/data/cache/price-history/`), never into the
+  committed seed; `npm run cache:clear` resets them.
+- One action does it all. `POST /demo/price-drop {item_id}` computes the price (below the watch threshold and every
+  real store), writes it to the item's checkout offer (which the watcher polls to charge the card), appends the
+  history, and re-scores and updates the saved item row so the library and detail screen update live.
+  `POST /demo/offer {item_id}` first creates the offer at the pre-drop price so checkout is eligible. Without
+  `item_id`, the drop only changes scoring (terminal checks).
+- On stage the operator uses a hidden control: with `EXPO_PUBLIC_DEMO_TOOLS=true` (app) and `DEMO_MODE=true`
+  (server), long-press the verdict line on a saved item's detail screen to "Create sandbox offer" (before setting
+  the watch) or "Drop the price". It calls the routes through `apiFetch`, so it uses the user's own login.
 - Sandbox listings never count toward the price reference median.
 - Before demo day, tune seeded history and constants so the stage item is Wait before the drop and
   buy-now territory after it.

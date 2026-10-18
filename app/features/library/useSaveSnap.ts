@@ -2,7 +2,8 @@ import { useCallback, useRef, useState } from 'react';
 import type { AnalysisOutput, ScoreOutput } from '../../../shared/contracts';
 import { removeItem, saveItem } from './api';
 
-export type ScoreStatus = 'scoring' | 'ready' | 'unavailable' | 'error';
+// 'no_listing': scored, but no store sells it new, so there is no best listing and it cannot be saved.
+export type ScoreStatus = 'scoring' | 'ready' | 'unavailable' | 'error' | 'no_listing';
 
 // Everything on screen for one snap, so a swiped-away card can be put back exactly.
 export interface Snap {

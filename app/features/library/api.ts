@@ -20,6 +20,7 @@ export async function saveItem({ photoUri, analysis, score }: SaveItemInput): Pr
   const { data: auth } = await supabase.auth.getSession();
   const userId = auth.session?.user.id;
   if (!userId) throw new Error('not signed in');
+  if (!score.best_listing) throw new Error('no listing to save'); // items.best_listing is NOT NULL
 
   const id = randomUUID();
   const path = `${userId}/${id}.jpg`;

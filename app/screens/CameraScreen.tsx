@@ -201,7 +201,7 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
       const scored = await scoreItem(result, controller.signal);
       if (mounted.current && currentSession === session.current) {
         setScore(scored);
-        setScoreStatus('ready');
+        setScoreStatus(scored.best_listing ? 'ready' : 'no_listing');
       }
     } catch (e) {
       const unavailable = e instanceof ScoreUnavailableError;
@@ -213,7 +213,7 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
   }
 
   // An unsaved snap shaped like a Library row, for the tap-to-expand detail sheet.
-  const draft: LibraryItem | null = snap?.score ? {
+  const draft: LibraryItem | null = snap?.score?.best_listing ? {
     id: '', user_id: '', created_at: new Date().toISOString(),
     thumbnail_url: snap.photoUri,
     name: snap.analysis.name, summary: snap.analysis.summary, category: snap.analysis.category,

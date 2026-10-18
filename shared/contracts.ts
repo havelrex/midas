@@ -40,7 +40,7 @@ export interface ScoreOutput {
   score: number; // 0..100
   verdict: Verdict;
   subscores: SubScores;
-  best_listing: BestListing;
+  best_listing: BestListing | null; // null when no trusted-or-cleaned listing exists; such a score cannot be saved
   suggested_target_price: number | null; // 90-day low when verdict is 'wait', else null
   // true when a Buy now was downgraded to Wait because price or timing data was too thin to trust.
   verdict_capped?: boolean;

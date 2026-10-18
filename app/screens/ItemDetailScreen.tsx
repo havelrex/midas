@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import {
   ActionSheetIOS,
+  Alert,
   ActivityIndicator,
   Image,
   Linking,
@@ -14,6 +15,7 @@ import {
 import type { LibraryItem, SubScores } from '../../shared/contracts';
 import { removeItem, stopWatching } from '../features/library/api';
 import { useItem } from '../features/library/hooks';
+import { createDemoOffer, DEMO_TOOLS_ENABLED, dropDemoPrice } from '../lib/demoApi';
 import { colors } from '../lib/theme';
 import { formatPrice, VERDICT_DISPLAY, verdictReason } from '../lib/verdict';
 
@@ -107,6 +109,15 @@ export function ItemDetailView({
     }
   };
 
+  // Hidden: long-press the verdict line (EXPO_PUBLIC_DEMO_TOOLS=true, saved items only).
+  const openDemoTools = () => {
+    Alert.alert('Demo tools', 'Sandbox store actions for this item.', [
+      { text: 'Create sandbox offer', onPress: async () => Alert.alert('Demo', await createDemoOffer(item.id)) },
+      { text: 'Drop the price', onPress: async () => Alert.alert('Demo', await dropDemoPrice(item.id)) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   const confirmStopWatching = () => {
     ActionSheetIOS.showActionSheetWithOptions(
       {
@@ -183,7 +194,9 @@ export function ItemDetailView({
           </View>
         </View>
 
-        <Text style={styles.reason}>{verdictReason(item.verdict, item.subscores)}</Text>
+        <Text style={styles.reason} onLongPress={DEMO_TOOLS_ENABLED && item.id ? openDemoTools : undefined}>
+          {verdictReason(item.verdict, item.subscores)}
+        </Text>
         {!!item.summary && <Text style={styles.summary}>{item.summary}</Text>}
 
         <Text style={styles.sectionHeader}>Why this score</Text>
