@@ -5,6 +5,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Switch,
   StyleSheet,
   Text,
   View,
@@ -12,7 +13,7 @@ import {
 import type { CheckoutStatus } from '../../shared/contracts';
 import { useAuth } from '../features/auth/AuthProvider';
 import { useLibrary } from '../features/library/hooks';
-import { colors } from '../lib/theme';
+import { themedStyles, useTheme } from '../lib/theme';
 
 interface Props {
   visible: boolean;
@@ -28,6 +29,7 @@ const COUNTS: { status: CheckoutStatus; label: string }[] = [
 
 // Sheet over the camera (bottom-right button). pageSheet gives the native grabber and swipe-down to close.
 export default function ProfileScreen({ visible, onClose }: Props) {
+  const styles = useStyles();
   return (
     <Modal visible={visible} presentationStyle="pageSheet" animationType="slide" onRequestClose={onClose}>
       <ProfileContent onClose={onClose} />
@@ -36,6 +38,8 @@ export default function ProfileScreen({ visible, onClose }: Props) {
 }
 
 function ProfileContent({ onClose }: { onClose: () => void }) {
+  const styles = useStyles();
+  const { colors, mode, setMode } = useTheme();
   const { session, signOut } = useAuth();
   const { items, loading, error } = useLibrary();
   const [signingOut, setSigningOut] = useState(false);
@@ -104,6 +108,18 @@ function ProfileContent({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        <Text style={styles.sectionHeader}>Appearance</Text>
+        <View style={styles.group}>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Dark Mode</Text>
+            <Switch
+              accessibilityLabel="Dark Mode"
+              value={mode === 'dark'}
+              onValueChange={(on) => setMode(on ? 'dark' : 'light')}
+            />
+          </View>
+        </View>
+
         <View style={[styles.group, styles.signOutGroup]}>
           <Pressable
             onPress={confirmSignOut}
@@ -124,7 +140,7 @@ function ProfileContent({ onClose }: { onClose: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   container: { flex: 1, backgroundColor: colors.groupedBackground },
   navBar: { height: 56, alignItems: 'center', justifyContent: 'center' },
   navTitle: { color: colors.label, fontSize: 17, fontWeight: '600' },
@@ -149,4 +165,4 @@ const styles = StyleSheet.create({
   signOutRow: { justifyContent: 'center' },
   signOutText: { color: colors.destructive, fontSize: 17 },
   pressed: { opacity: 0.5 },
-});
+}));
