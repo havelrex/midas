@@ -25,6 +25,8 @@ interface Props {
   onDelete: () => void; // swipe right
   onOpen: () => void; // tap: full detail
   onRetry: () => void; // scoring failed
+  onCheckout: () => void; // saves the item, then opens checkout
+  checkingOut?: boolean; // the save behind Checkout is running
 }
 
 const COMMIT_DISTANCE = 120;
@@ -47,7 +49,9 @@ export function swipeOutcome(
 const isSideways = (g: { dx: number; dy: number }) => Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5;
 
 // The card that appears after a snap. JS-only gestures (PanResponder + Animated), so no native build.
-export default function ScoreCard({ photoUri, analysis, score, status, onSave, onDelete, onOpen, onRetry }: Props) {
+export default function ScoreCard({
+  photoUri, analysis, score, status, onSave, onDelete, onOpen, onRetry, onCheckout, checkingOut = false,
+}: Props) {
   const { width } = useWindowDimensions();
   const panX = useRef(new Animated.Value(0)).current;
   const canSave = status === 'ready' && !!score;
@@ -148,6 +152,24 @@ export default function ScoreCard({ photoUri, analysis, score, status, onSave, o
           </View>
         )}
         {status === 'ready' && score && <Text style={styles.reason}>{verdictReason(score.verdict, score.subscores)}</Text>}
+
+        {canSave && score?.best_listing && (
+          <Pressable
+            onPress={onCheckout}
+            disabled={checkingOut}
+            accessibilityRole="button"
+            accessibilityLabel={`Checkout, ${formatPrice(score.best_listing.price + score.best_listing.shipping)}`}
+            accessibilityHint="Saves this item to your Library and opens checkout."
+            accessibilityState={{ disabled: checkingOut, busy: checkingOut }}
+            style={({ pressed }) => [styles.checkout, (pressed || checkingOut) && styles.checkoutPressed]}
+          >
+            {checkingOut ? <ActivityIndicator color="#fff" /> : (
+              <Text style={styles.checkoutText}>
+                Checkout · {formatPrice(score.best_listing.price + score.best_listing.shipping)}
+              </Text>
+            )}
+          </Pressable>
+        )}
 
         {status === 'ready' && score && (
           <Pressable
@@ -263,6 +285,10 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   secondary: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 20 },
   retry: { color: colors.tint, fontSize: 15, fontWeight: '600' },
+  // Same primary button as the item detail screen's Checkout.
+  checkout: { minHeight: 50, borderRadius: 25, backgroundColor: colors.tint, alignItems: 'center', justifyContent: 'center' },
+  checkoutPressed: { opacity: 0.8 },
+  checkoutText: { color: '#fff', fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
   // Glass capsule
   toggle: {
     flexDirection: 'row',

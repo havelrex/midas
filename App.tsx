@@ -20,14 +20,27 @@ function Root() {
   return <SignedIn key={session.user.id} />;
 }
 
-type Screen = { name: 'camera' } | { name: 'library' } | { name: 'item'; id: string } | { name: 'checkout'; id: string };
+type Screen =
+  | { name: 'camera' }
+  | { name: 'library' }
+  | { name: 'item'; id: string }
+  | { name: 'checkout'; id: string; from: 'camera' | 'item' };
 
 // Camera -> Library (bottom-left) -> Item detail. Profile is a sheet over the camera (bottom-right).
+// Checkout opens from the score card (after it saves the item) or from a saved item's detail.
 function SignedIn() {
   const [screen, setScreen] = useState<Screen>({ name: 'camera' });
   const [profileOpen, setProfileOpen] = useState(false);
   if (screen.name === 'checkout') {
-    return <CheckoutScreen key={screen.id} itemId={screen.id} onBack={() => setScreen({ name: 'item', id: screen.id })} />;
+    const fromCamera = screen.from === 'camera';
+    return (
+      <CheckoutScreen
+        key={screen.id}
+        itemId={screen.id}
+        backLabel={fromCamera ? 'Camera' : 'Item'}
+        onBack={() => setScreen(fromCamera ? { name: 'camera' } : { name: 'item', id: screen.id })}
+      />
+    );
   }
 
   if (screen.name === 'library') {
@@ -44,15 +57,20 @@ function SignedIn() {
         id={screen.id}
         onBack={() => setScreen({ name: 'library' })}
         onCheckout={(item) => {
-          if (item.id.startsWith('mock-')) Alert.alert('UI-only sample', 'This sample is not in Supabase. Use the real test library or save a test card before checkout.');
-          else setScreen({ name: 'checkout', id: item.id });
+          // In-app sample items (EXPO_PUBLIC_MOCK_LIBRARY) have no saved row, so the server can't check them out.
+          if (item.id.startsWith('mock-')) Alert.alert('Sample item', "Sample items can't be checked out.");
+          else setScreen({ name: 'checkout', id: item.id, from: 'item' });
         }}
       />
     );
   }
   return (
     <View style={styles.container}>
-      <CameraScreen onOpenLibrary={() => setScreen({ name: 'library' })} onOpenProfile={() => setProfileOpen(true)} />
+      <CameraScreen
+        onOpenLibrary={() => setScreen({ name: 'library' })}
+        onOpenProfile={() => setProfileOpen(true)}
+        onOpenCheckout={(id) => setScreen({ name: 'checkout', id, from: 'camera' })}
+      />
       <ProfileScreen visible={profileOpen} onClose={() => setProfileOpen(false)} />
     </View>
   );

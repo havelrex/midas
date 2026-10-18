@@ -9,11 +9,11 @@ import ScoreCard from '../components/ScoreCard';
 import { colors } from '../lib/theme';
 import UndoBar from '../components/UndoBar';
 import { type ScoreStatus, type Snap, useSaveSnap } from '../features/library/useSaveSnap';
+import { saveItem } from '../features/library/api';
 import { ItemDetailView } from './ItemDetailScreen';
 import { createDummySnap, DUMMY_MODEL, DUMMY_TARGET_PRICE, TEST_TOOLS_ENABLED } from '../testing/dummySnap';
 import {
   ActivityIndicator,
-  Alert,
   AppState,
   Image,
   Linking,
@@ -28,9 +28,10 @@ import {
 interface Props {
   onOpenLibrary: () => void; // bottom-left
   onOpenProfile: () => void; // bottom-right
+  onOpenCheckout: (itemId: string) => void; // after the card's Checkout has saved the item
 }
 
-export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
+export default function CameraScreen({ onOpenLibrary, onOpenProfile, onOpenCheckout }: Props) {
   const camera = useRef<CameraView>(null);
   const captureInProgress = useRef(false);
   const session = useRef(0);
@@ -51,6 +52,7 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
   const [score, setScore] = useState<ScoreOutput | null>(null);
   const [scoreStatus, setScoreStatus] = useState<ScoreStatus>('scoring');
   const [detailOpen, setDetailOpen] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
 
   const saver = useSaveSnap({
     onRestore: showSnap,
@@ -64,6 +66,24 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
 
   // The snap currently on screen, as the save hook needs it.
   const snap: Snap | null = photoUri && analysis ? { photoUri, analysis, score, scoreStatus } : null;
+
+  // Card -> checkout: checkout needs a saved row, so save first (no Undo; the user chose to buy).
+  // Whether it can actually be bought is the checkout screen's call (demo items only).
+  async function checkout(current: Snap) {
+    if (checkingOut || !current.score?.best_listing) return;
+    setCheckingOut(true);
+    setError(null);
+    try {
+      const item = await saveItem({ photoUri: current.photoUri, analysis: current.analysis, score: current.score });
+      resetSnap();
+      onOpenCheckout(item.id);
+    } catch (e) {
+      console.warn('checkout save failed:', e instanceof Error ? e.message : e);
+      if (mounted.current) setError("Couldn't save this item, so checkout can't open. Check your connection and try again.");
+    } finally {
+      if (mounted.current) setCheckingOut(false);
+    }
+  }
 
   // Back to the live camera, dropping the current snap and any request for it.
   function resetSnap() {
@@ -268,6 +288,8 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
                     onDelete={() => { saver.discard(snap); resetSnap(); }}
                     onOpen={() => setDetailOpen(true)}
                     onRetry={() => void scoreAnalysis(snap.analysis, session.current)}
+                    onCheckout={() => void checkout(snap)}
+                    checkingOut={checkingOut}
                   />
                 </View>
               )}
@@ -370,11 +392,7 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
             <Text style={styles.sheetDone}>Done</Text>
           </Pressable>
         </View>
-        {draft && <ItemDetailView item={draft} onCheckout={() => {
-          if (TEST_TOOLS_ENABLED && draft.model === DUMMY_MODEL) {
-            Alert.alert('Save before checkout', 'Swipe this card into Library, then open the saved item to test Stripe. Pedro must register a sandbox offer for its saved item ID.');
-          } else Alert.alert('Save before checkout', 'Save this item to Library, then open its saved detail to check sandbox checkout availability.');
-        }} />}
+        {draft && snap && <ItemDetailView item={draft} onCheckout={() => { setDetailOpen(false); void checkout(snap); }} />}
       </Modal>
     </SafeAreaView>
   );
