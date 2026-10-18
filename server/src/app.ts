@@ -5,8 +5,10 @@ import { healthRouter } from './routes/health.js';
 import { meRouter } from './routes/me.js';
 import { analyzeRouter } from './routes/analyze.js';
 import type { AnalyzeImage } from './analysis/gemini.js';
+import type { CheckoutService } from './checkout/service.js';
+import { checkoutRouter, stripeWebhookRouter } from './routes/checkout.js';
 
-export function createApp(options: { verifyToken: VerifyToken; logger?: Logger; analyze?: AnalyzeImage }) {
+export function createApp(options: { verifyToken: VerifyToken; logger?: Logger; analyze?: AnalyzeImage; checkout?: CheckoutService }) {
   const app = express();
   const logger = options.logger ?? console;
   app.disable('x-powered-by');
@@ -22,12 +24,12 @@ export function createApp(options: { verifyToken: VerifyToken; logger?: Logger; 
   });
   app.use(healthRouter());
 
-  // Register future Stripe raw-body webhook routes ABOVE this JSON router.
+  app.use(stripeWebhookRouter(options.checkout));
   const api = Router();
   api.use(express.json({ limit: '10mb' }));
   api.use(meRouter(options.verifyToken));
   api.use(analyzeRouter(options.verifyToken, options.analyze));
-  // Mount future analysis, listings, scoring, and checkout routers here.
+  api.use(checkoutRouter(options.verifyToken, options.checkout));
   app.use(api);
 
   app.use((_req, res) => res.status(404).json({ error: 'not found' }));

@@ -3,21 +3,26 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "checkout:demo": "tsx src/checkout/demo.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
-    "jose": "^6.1.0"
+    "jose": "^6.1.0",
+    "stripe": "^23.0.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
     "@types/supertest": "^6.0.0",
