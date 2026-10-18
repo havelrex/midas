@@ -17,10 +17,12 @@ export interface ScoringConfig {
   };
   price: {
     score_multiplier: number; clean_low_ratio: number; clean_high_ratio: number; risk_factor: number;
-    limited_below_listings: number;
+    limited_below_listings: number; about_normal_band: number;
+    min_vouched_stars: number; unvouched_confidence_cap: number;
     ebay: { stars_per_missing_percent: number; unproven_below_feedback: number; unproven_max_stars: number };
     trusted_retailers: string[];
   };
+  demo: { sandbox_markup: number; drop_undercut: number };
   timing: {
     window_days: number; limited_below_days: number; sale_window_days: number; sale_penalty: number;
     near_low_position: number; sale_events: { name: string; date: string }[];

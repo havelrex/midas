@@ -18,4 +18,5 @@ export interface ScoreOutput {
   subscores: { quality: SubScore | null; price: SubScore | null; reviews: SubScore | null; timing: SubScore | null };
   best_listing: BestListing | null;
   suggested_target_price: number | null;
+  verdict_capped?: boolean;
 }

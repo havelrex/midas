@@ -14,11 +14,16 @@
     "fake_review": { "five_share_min": 0.85, "middle_share_max": 0.08, "penalty": 15 }
   },
   "price": {
-    "score_multiplier": 250, "clean_low_ratio": 0.5, "clean_high_ratio": 2,
-    "risk_factor": 0.1, "limited_below_listings": 3,
+    "score_multiplier": 250, "clean_low_ratio": 0.7, "clean_high_ratio": 2,
+    "risk_factor": 0.1, "limited_below_listings": 3, "about_normal_band": 0.03,
+    "min_vouched_stars": 4, "unvouched_confidence_cap": 0.5,
     "ebay": { "stars_per_missing_percent": 0.4, "unproven_below_feedback": 50, "unproven_max_stars": 4 },
-    "trusted_retailers": ["Best Buy", "Amazon.com", "Walmart", "Target", "Costco", "B&H Photo", "Apple", "Samsung"]
+    "trusted_retailers": [
+      "Best Buy", "Amazon.com", "Walmart", "Target", "Costco", "B&H Photo", "B&H Photo Video", "Apple", "Samsung",
+      "Newegg.com", "Adorama", "Micro Center", "Lowe's", "Home Depot", "Dell", "Staples", "Macy's", "Crutchfield"
+    ]
   },
+  "demo": { "sandbox_markup": 0.02, "drop_undercut": 1 },
   "timing": {
     "window_days": 90, "limited_below_days": 14,
     "sale_window_days": 42, "sale_penalty": 20, "near_low_position": 0.2,

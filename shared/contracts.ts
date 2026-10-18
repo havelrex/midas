@@ -42,6 +42,8 @@ export interface ScoreOutput {
   subscores: SubScores;
   best_listing: BestListing;
   suggested_target_price: number | null; // 90-day low when verdict is 'wait', else null
+  // true when a Buy now was downgraded to Wait because price or timing data was too thin to trust.
+  verdict_capped?: boolean;
 }
 
 // 3. Library item (Stanley -> everyone): one row in public.items
