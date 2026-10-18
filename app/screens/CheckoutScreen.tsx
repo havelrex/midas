@@ -17,6 +17,7 @@ import { randomUUID } from 'expo-crypto';
 import type { ItemCheckout, PaymentSheetConfig, OrderSummary } from '../../shared/checkout';
 import { useItem } from '../features/library/hooks';
 import { apiFetch } from '../lib/apiFetch';
+import { ensureDemoOffer } from '../lib/demoApi';
 import { themedStyles, useTheme } from '../lib/theme';
 import { formatPrice } from '../lib/verdict';
 
@@ -68,11 +69,20 @@ export default function CheckoutScreen({ itemId, onBack, backLabel = 'Back' }: P
       say("Couldn't complete checkout. Pull down to refresh, then try again.", true);
     } finally { lock.current = false; if (mounted.current) setBusy(false); }
   }
+  // First open: an item can only be bought once the server holds a demo-store offer for it, and nothing else
+  // on this path creates one. Ask the server (DEMO_MODE only) before showing anything, so the screen doesn't
+  // flash "Not available". The server decides: no trusted store or demo mode off leaves it not available.
+  const firstLoad = useCallback(async () => {
+    const current = await apiFetch<ItemCheckout>(path);
+    if (!current.eligible) await ensureDemoOffer(itemId);
+    await refresh();
+  }, [path, itemId, refresh]);
+
   useEffect(() => {
     mounted.current = true;
-    void run(refresh);
+    void run(firstLoad);
     return () => { mounted.current = false; };
-  }, [refresh]);
+  }, [firstLoad]);
 
   const onPullRefresh = async () => {
     setRefreshing(true);

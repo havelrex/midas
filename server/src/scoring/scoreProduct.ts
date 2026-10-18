@@ -5,7 +5,7 @@ import type { Demo } from './demo.js';
 import { effectivePrice, scorePrice } from './price.js';
 import { loadPriceHistory } from './priceHistory.js';
 import type { createQualityService } from './qualityService.js';
-import { scoreReviews } from './reviews.js';
+import { pickReviewSource, scoreReviews } from './reviews.js';
 import { composeScore, type ComposeMeta } from './score.js';
 import { scoreTiming } from './timing.js';
 import type { Listing, ScoreOutput } from './types.js';
@@ -76,8 +76,12 @@ export function createScorer(deps: ScorerDeps): ScoreProduct {
       : { sub: null, confidence: 0, low: null };
 
     const detail = await detailPromise;
+    // Detail call first; otherwise the Shopping result for this model with the most reviews.
+    const source = pickReviewSource(items);
     const reviews = scoreReviews({
-      avg: detail?.avg ?? picked?.avg ?? null, n: detail?.n ?? picked?.n ?? null, breakdown: detail?.breakdown,
+      avg: detail?.avg ?? picked?.avg ?? source?.avg ?? null,
+      n: detail?.n ?? picked?.n ?? source?.n ?? null,
+      breakdown: detail?.breakdown,
     }, cfg.reviews);
     const quality = await qualityPromise;
 
