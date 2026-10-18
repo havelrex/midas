@@ -52,6 +52,7 @@ export default function CameraScreen() {
       if (!photoUri) showSnap(snap);
       setError("Couldn't save to Library. Check your connection and swipe again.");
     },
+    onUndoFailed: () => setError("Couldn't undo. The item is still in your Library; delete it from there."),
   });
 
   // The snap currently on screen, as the save hook needs it.
