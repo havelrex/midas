@@ -144,7 +144,6 @@ export default function ScoreCard({ photoUri, analysis, score, status, onSave, o
         </View>
 
         {!!analysis.summary && <Text style={styles.summary}>{analysis.summary}</Text>}
-        {!analysis.model && <Text style={styles.summary}>Exact model unknown. Retake with the model label visible.</Text>}
 
         {status === 'scoring' && (
           <View style={styles.row}>
@@ -198,6 +197,15 @@ export default function ScoreCard({ photoUri, analysis, score, status, onSave, o
         {status === 'no_listing' && (
           <Text style={styles.secondary}>Couldn't find this for sale, so it can't be saved. Swipe right to delete.</Text>
         )}
+        {status === 'no_model' && (
+          <>
+            <Text style={styles.reason}>We couldn't read the exact model.</Text>
+            <Text style={styles.secondary}>Retake with the model label or the product itself clearly in frame.</Text>
+            <Pressable onPress={onDelete} accessibilityRole="button" accessibilityLabel="Retake photo" style={({ pressed }) => [styles.retake, pressed && styles.pressed]}>
+              <Text style={styles.retakeText}>Retake photo</Text>
+            </Pressable>
+          </>
+        )}
         {status === 'unavailable' && (
           <Text style={styles.secondary}>Scoring isn't available yet, so this can't be saved. Swipe right to delete.</Text>
         )}
@@ -210,7 +218,7 @@ export default function ScoreCard({ photoUri, analysis, score, status, onSave, o
           </View>
         )}
 
-        <Text style={styles.hint}>{canSave ? 'Tap for full details  ·  ← Save  ·  Delete →' : 'Delete →'}</Text>
+        <Text style={styles.hint}>{canSave ? 'Tap for full details  ·  ← Save  ·  Delete →' : status === 'no_model' ? '' : 'Delete →'}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -259,6 +267,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   flex: { flex: 1 },
   secondary: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 20 },
+  retake: { minHeight: 48, borderRadius: 24, backgroundColor: colors.tint, alignItems: 'center', justifyContent: 'center' },
+  retakeText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   retry: { color: colors.tint, fontSize: 15, fontWeight: '600' },
   // Glass capsule
   toggle: {

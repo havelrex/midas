@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { StatusBar } from 'expo-status-bar';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { apiFetch } from '../lib/apiFetch';
-import { scoreItem, ScoreUnavailableError } from '../lib/scoreApi';
+import { scoreItem, ScoreNeedsModelError, ScoreUnavailableError } from '../lib/scoreApi';
 import type { AnalysisOutput, LibraryItem, ScoreOutput } from '../../shared/contracts';
 import ScoreCard from '../components/ScoreCard';
 import { colors } from '../lib/theme';
@@ -176,7 +176,12 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
       if (mounted.current && currentSession === session.current) {
         setAnalysis(result);
         // Nothing to score if Gemini couldn't name the product; the user retakes instead.
-        if (result.name) void scoreAnalysis(result, currentSession);
+        // Without a model number the listings search is a guess, so skip /score and make the user retake.
+        if (result.name && !result.model?.trim()) {
+          scoreRequest.current?.abort();
+          setScore(null);
+          setScoreStatus('no_model');
+        } else if (result.name) void scoreAnalysis(result, currentSession);
       }
     } catch (e) {
       // Shows in the Metro terminal: network failure, timeout, or the server's status code.
@@ -204,6 +209,10 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
         setScoreStatus(scored.best_listing ? 'ready' : 'no_listing');
       }
     } catch (e) {
+      if (e instanceof ScoreNeedsModelError) {
+        if (mounted.current && currentSession === session.current) setScoreStatus('no_model');
+        return;
+      }
       const unavailable = e instanceof ScoreUnavailableError;
       if (!unavailable) console.warn('score failed:', e instanceof Error ? e.message : e);
       if (mounted.current && currentSession === session.current) setScoreStatus(unavailable ? 'unavailable' : 'error');
@@ -265,8 +274,8 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
                     analysis={snap.analysis}
                     score={snap.score}
                     status={snap.scoreStatus}
-                    onSave={() => { saver.save(snap); resetSnap(); }}
-                    onDelete={() => { saver.discard(snap); resetSnap(); }}
+                    onSave={() => { if (snap.scoreStatus !== 'ready') return; saver.save(snap); resetSnap(); }}
+                    onDelete={() => { if (snap.scoreStatus !== 'no_model') saver.discard(snap); resetSnap(); }}
                     onOpen={() => setDetailOpen(true)}
                     onRetry={() => void scoreAnalysis(snap.analysis, session.current)}
                   />
@@ -306,7 +315,7 @@ export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
         <Text style={styles.title}>{analysis.name || 'Product not identified'}</Text>
         <Text style={styles.hint}>{[analysis.brand, analysis.model].filter(Boolean).join(' · ')}</Text>
         <Text style={styles.hint}>{analysis.summary}</Text>
-        {!analysis.model && <Text style={styles.hint}>Exact model unknown. Retake with the model label visible.</Text>}
+        {!analysis.model && <Text style={styles.hint}>Exact model unknown. Retake with the product and its model label in frame.</Text>}
       </View>}
       {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
       {photoUri && !analyzing && !analysis && <Pressable accessibilityRole="button" style={styles.button} onPress={() => {

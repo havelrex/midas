@@ -2,8 +2,9 @@ import { useCallback, useRef, useState } from 'react';
 import type { AnalysisOutput, ScoreOutput } from '../../../shared/contracts';
 import { removeItem, saveItem } from './api';
 
+// 'no_model': the photo gave no model number, so it is never scored or saved; the user retakes.
 // 'no_listing': scored, but no store sells it new, so there is no best listing and it cannot be saved.
-export type ScoreStatus = 'scoring' | 'ready' | 'unavailable' | 'error' | 'no_listing';
+export type ScoreStatus = 'scoring' | 'ready' | 'unavailable' | 'error' | 'no_listing' | 'no_model';
 
 // Everything on screen for one snap, so a swiped-away card can be put back exactly.
 export interface Snap {
@@ -53,7 +54,7 @@ export function useSaveSnap({ onRestore, onSaveFailed, onUndoFailed }: Options) 
   }, []);
 
   const save = useCallback((snap: Snap) => {
-    if (!snap.score) return; // items needs a score; the card blocks this swipe anyway
+    if (!snap.score || snap.scoreStatus !== 'ready') return; // items needs a score; the card blocks this swipe anyway
     let undone = false;
     const pending = saveItem({ photoUri: snap.photoUri, analysis: snap.analysis, score: snap.score }).catch((e) => {
       console.warn('saveItem failed:', e instanceof Error ? e.message : e);
