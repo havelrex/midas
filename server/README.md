@@ -1,8 +1,10 @@
-# Snap & Score API
+# Midas API
 
 Small TypeScript/Express backend for the iOS app. This foundation provides startup,
-Supabase authentication, JSON errors, and tests. Listing search, scoring,
-checkout, and price watching will be added separately. Gemini identification is
+Supabase authentication, JSON errors, and tests. Listing search and scoring
+will be added separately. Sandbox checkout and threshold autobuy are
+implemented; see [CHECKOUT.md](CHECKOUT.md) for setup, API contracts, and the
+backend-only demonstration. Gemini identification is
 available through the authenticated `POST /analyze` endpoint.
 
 ## Start locally
@@ -28,10 +30,11 @@ SUPABASE_ANON_KEY=your-project-anon-key
 
 `PORT` defaults to 4000. The URL and anon key are required. Auth uses local JWKS
 verification, falling back to Supabase's `getUser(token)` for legacy signing keys
-or unavailable JWKS. `SUPABASE_SERVICE_ROLE_KEY` is only required if future
-automation explicitly calls `createSupabaseAdmin(config)`; it is not used by `/me`.
+or unavailable JWKS. `SUPABASE_SERVICE_ROLE_KEY` is required by checkout and
+automation through `createSupabaseAdmin(config)`; it is not used by `/me`.
 The Gemini key is optional at startup but required for `/analyze`. Shopping and
-Stripe keys are not required yet. Never give server secrets
+Stripe keys are optional at startup. Checkout requires sandbox keys and the
+service-role key; incomplete configuration returns 503 for payment routes. Never give server secrets
 an `EXPO_PUBLIC_` prefix or commit `.env`.
 
 Keep the server terminal open. In another terminal:
@@ -119,9 +122,9 @@ Run `npm run typecheck` from the repository root separately to check the mobile 
   Keep network calls and scoring logic out of route handlers.
 - Follow `shared/contracts.ts` and coordinate changes with the contract owner.
   The app continues accessing its library directly through Supabase/RLS.
-- Register future Stripe webhook routes with `express.raw({ type: 'application/json' })`
-  **before** the JSON API router in `app.ts`; verify the signature before using the body.
-  There is no checkout or webhook endpoint yet.
+- `/webhooks/stripe` uses `express.raw({ type: 'application/json' })` **before**
+  the JSON API router in `app.ts`, and verifies the signature before processing.
+  Keep this ordering when adding middleware. Checkout routes live under `/checkout`.
 
 Ordinary JSON bodies are limited to 10 MB (including base64 image overhead).
 Errors use `{ "error": "message" }`: malformed JSON 400, oversized body 413,
