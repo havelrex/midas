@@ -97,3 +97,60 @@ test('diagnostics identify provider failure without leaking key or response body
   assert.equal(JSON.parse(logs[0]).providerStatus, 403);
   assert.doesNotMatch(logs.join(''), /private-|imageBase64/);
 });
+
+test('optional fallback resolves a label-free candidate without changing the public contract', async () => {
+  const calls: string[] = [];
+  const analyze = createGeminiAnalyzer({ apiKey: 'test', model: 'primary', fallbackModel: 'stronger', logger,
+    fetcher: async (url) => {
+      calls.push(String(url));
+      const value = calls.length === 1 ? { ...product, ambiguous: true, candidates: [] }
+        : { ...product, confidence: 0.95, ambiguous: false, candidates: [
+          { model: 'WH-1000XM5', confidence: 0.95, labelVisible: false,
+            evidence: ['Distinctive hinge', 'Distinctive headband connection'] },
+        ] };
+      return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(value) }] } }] });
+    },
+  });
+  const result = await analyze(image);
+  assert.equal(result.model, 'WH-1000XM5');
+  assert.equal(calls.length, 2);
+  assert.ok(calls[1].includes('/stronger:generateContent'));
+  assert.deepEqual(Object.keys(result).sort(), Object.keys(product).sort());
+});
+
+test('fallback failure or conflicting brand preserves the initial family identification', async () => {
+  const family = { ...product, ambiguous: true, candidates: [] };
+  for (const fails of [true, false]) {
+    let calls = 0;
+    const analyze = createGeminiAnalyzer({ apiKey: 'test', fallbackModel: 'stronger', logger,
+      fetcher: async () => {
+        calls++;
+        if (calls === 2 && fails) return new Response('{}', { status: 429 });
+        const value = calls === 1 ? family : { ...product, brand: 'Different brand', confidence: 0.99,
+          ambiguous: false, candidates: [{ model: 'Other', confidence: 0.99, labelVisible: true, evidence: ['Label'] }] };
+        return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(value) }] } }] });
+      },
+    });
+    assert.deepEqual(await analyze(image), resolveIdentification(family));
+    assert.equal(calls, 2);
+  }
+});
+
+test('fallback does not add requests for exact matches, provider errors or absent products', async () => {
+  for (const kind of ['match', 'error', 'empty']) {
+    let calls = 0;
+    const analyze = createGeminiAnalyzer({ apiKey: 'test', fallbackModel: 'stronger', logger,
+      fetcher: async () => {
+        calls++;
+        if (kind === 'error') return new Response('{}', { status: 400 });
+        const value = kind === 'match' ? { ...product, confidence: 0.95, ambiguous: false,
+          candidates: [{ model: 'WH-1000XM5', confidence: 0.95, labelVisible: true, evidence: ['Label'] }] }
+          : { category: '', brand: '', model: '', name: '', summary: '', confidence: 0, ambiguous: true, candidates: [] };
+        return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(value) }] } }] });
+      },
+    });
+    if (kind === 'error') await assert.rejects(analyze(image), AnalysisError);
+    else await analyze(image);
+    assert.equal(calls, 1);
+  }
+});
