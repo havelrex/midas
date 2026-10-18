@@ -4,6 +4,7 @@ import request from 'supertest';
 import type { AnalysisOutput } from '../../shared/contracts.js';
 import { createApp } from '../src/app.js';
 import { AnalysisError, createGeminiAnalyzer, validateOutput } from '../src/analysis/gemini.js';
+import { resolveIdentification } from '../src/analysis/identification.js';
 
 const product: AnalysisOutput = { category: 'Headphones', brand: 'Sony', model: '', name: 'Sony headphones', summary: 'Over-ear headphones', confidence: 0.6 };
 const image = { mimeType: 'image/jpeg' as const, imageBase64: Buffer.from([255, 216, 255, 0]).toString('base64') };
@@ -36,9 +37,39 @@ test('Gemini request uses server header, inline image and JSON schema', async ()
     const body = JSON.parse(init?.body as string);
     assert.equal(body.contents[0].parts[1].inlineData.data, image.imageBase64);
     assert.equal(body.generationConfig.responseMimeType, 'application/json');
-    return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(product) }] } }] });
+    return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ ...product, ambiguous: true, candidates: [] }) }] } }] });
   } });
-  assert.deepEqual(await analyze(image), product);
+  assert.deepEqual(await analyze(image), resolveIdentification({ ...product, ambiguous: true, candidates: [] }));
+});
+
+test('visual model identification requires evidence and separation from alternatives', () => {
+  const candidate = { model: 'WH-1000XM5', confidence: 0.95, labelVisible: false,
+    evidence: ['Cylindrical hinge joint', 'Slim continuous headband'] };
+  const result = resolveIdentification({ ...product, confidence: 0.95, ambiguous: false, candidates: [candidate] });
+  assert.equal(result.model, 'WH-1000XM5');
+  assert.equal(result.name, 'Sony WH-1000XM5');
+  assert.deepEqual(Object.keys(result).sort(), Object.keys(product).sort());
+  for (const extra of [
+    { ambiguous: true, candidates: [candidate] },
+    { ambiguous: false, candidates: [{ ...candidate, confidence: 0.7 }] },
+    { ambiguous: false, candidates: [candidate, { ...candidate, model: 'WH-1000XM4', confidence: 0.9 }] },
+    { ambiguous: false, candidates: [{ ...candidate, evidence: ['Sony logo'] }] },
+    { ambiguous: false, candidates: [{ ...candidate, evidence: ['Sony logo', 'sony logo'] }] },
+  ]) {
+    const unresolved = resolveIdentification({ ...product, model: candidate.model, name: 'Sony WH-1000XM5', ...extra });
+    assert.equal(unresolved.model, '');
+    assert.ok(!unresolved.name.includes('XM5'));
+  }
+  assert.equal(resolveIdentification({ ...product, ambiguous: false,
+    candidates: [{ ...candidate, labelVisible: true, evidence: ['Readable model label'] }] }).model, candidate.model);
+});
+
+test('invalid candidate evidence is rejected rather than trusted', () => {
+  const empty = { category: '', brand: '', model: '', name: '', summary: '', confidence: 0 };
+  assert.deepEqual(resolveIdentification({ ...empty, ambiguous: true, candidates: [] }), empty);
+  for (const candidates of [null, [{ model: 'X', confidence: 2, labelVisible: false, evidence: [] }]]) {
+    assert.throws(() => resolveIdentification({ ...product, ambiguous: false, candidates }), AnalysisError);
+  }
 });
 
 test('missing key, quota, timeout and malformed provider output return safe errors', async () => {
