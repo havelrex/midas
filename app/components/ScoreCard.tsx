@@ -135,6 +135,9 @@ export default function ScoreCard({ photoUri, analysis, score, status, onSave, o
           </View>
         </View>
 
+        {!!analysis.summary && <Text style={styles.summary}>{analysis.summary}</Text>}
+        {!analysis.model && <Text style={styles.summary}>Exact model unknown. Retake with the model label visible.</Text>}
+
         {status === 'scoring' && (
           <View style={styles.row}>
             <ActivityIndicator color={cameraColors.label} />
@@ -194,7 +197,8 @@ const styles = StyleSheet.create({
   name: { color: cameraColors.label, fontSize: 20, fontWeight: '700', lineHeight: 24 },
   pill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2, marginTop: 2 },
   pillText: { color: '#000', fontSize: 13, fontWeight: '700' },
-  reason: { color: cameraColors.label, fontSize: 15, lineHeight: 20 },
+  summary: { color: cameraColors.secondaryLabel, fontSize: 15, lineHeight: 20 },
+  reason: { color: cameraColors.label, fontSize: 15, lineHeight: 20, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   flex: { flex: 1 },
   secondary: { color: cameraColors.secondaryLabel, fontSize: 15, lineHeight: 20 },
