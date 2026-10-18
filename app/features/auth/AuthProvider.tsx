@@ -30,9 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   };
 
+  // Supabase clears the session on this phone even when the server call fails (e.g. offline),
+  // so sign-out never fails for the user; a session the server didn't hear about just expires.
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    if (error) console.warn('signOut: server call failed, signed out locally:', error.message);
   };
 
   return (
