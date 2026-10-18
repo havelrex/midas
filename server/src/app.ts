@@ -5,8 +5,11 @@ import { healthRouter } from './routes/health.js';
 import { meRouter } from './routes/me.js';
 import { analyzeRouter } from './routes/analyze.js';
 import type { AnalyzeImage } from './analysis/gemini.js';
+import { scoreRouter } from './routes/score.js';
+import type { Demo } from './scoring/demo.js';
+import type { ScoreProduct } from './scoring/scoreProduct.js';
 
-export function createApp(options: { verifyToken: VerifyToken; logger?: Logger; analyze?: AnalyzeImage }) {
+export function createApp(options: { verifyToken: VerifyToken; logger?: Logger; analyze?: AnalyzeImage; score?: ScoreProduct; demo?: Demo }) {
   const app = express();
   const logger = options.logger ?? console;
   app.disable('x-powered-by');
@@ -27,7 +30,8 @@ export function createApp(options: { verifyToken: VerifyToken; logger?: Logger; 
   api.use(express.json({ limit: '10mb' }));
   api.use(meRouter(options.verifyToken));
   api.use(analyzeRouter(options.verifyToken, options.analyze));
-  // Mount future analysis, listings, scoring, and checkout routers here.
+  api.use(scoreRouter(options.verifyToken, options.score, options.demo));
+  // Mount future checkout routers here.
   app.use(api);
 
   app.use((_req, res) => res.status(404).json({ error: 'not found' }));
