@@ -72,6 +72,15 @@ export async function getItem(id: string): Promise<LibraryItem | null> {
   return data as LibraryItem | null;
 }
 
+// Cancels buy-at-target: the automation only looks at 'watching' rows.
+export async function stopWatching(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('items')
+    .update({ checkout_status: 'none', target_price: null })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function removeItem(item: Pick<LibraryItem, 'id' | 'user_id'>): Promise<void> {
   const { error } = await supabase.from('items').delete().eq('id', item.id);
   if (error) throw error;

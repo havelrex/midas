@@ -51,6 +51,13 @@ export function useLibrary() {
         { event: '*', schema: 'public', table: 'items', filter: `user_id=eq.${userId}` },
         (payload) => setItems((prev) => applyChange(prev, payload)),
       )
+      // Realtime can't filter DELETE events (they only carry the id), so the filtered
+      // listener above never sees them. Listen unfiltered and match ids locally.
+      .on<LibraryItem>(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'items' },
+        (payload) => setItems((prev) => applyChange(prev, payload)),
+      )
       .subscribe();
 
     return () => {
@@ -62,17 +69,31 @@ export function useLibrary() {
 }
 
 // A single saved item for the detail screen, kept live via Realtime.
+// `deleted` flips when the row is removed elsewhere (another device, the dashboard).
 export function useItem(id: string | undefined) {
   const instanceId = useId();
   const [item, setItem] = useState<LibraryItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [deleted, setDeleted] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      setItem(await getItem(id));
+      setError(null);
+    } catch (e) {
+      setError(e as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
-    getItem(id)
-      .then(setItem, setError)
-      .finally(() => setLoading(false));
+    setDeleted(false);
+    refresh();
 
     const channel = supabase
       .channel(`item:${id}:${instanceId}`)
@@ -81,12 +102,20 @@ export function useItem(id: string | undefined) {
         { event: 'UPDATE', schema: 'public', table: 'items', filter: `id=eq.${id}` },
         (payload) => setItem(payload.new as LibraryItem),
       )
+      // DELETE events can't be filtered server-side, so match the id here.
+      .on<LibraryItem>(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'items' },
+        (payload) => {
+          if ((payload.old as Partial<LibraryItem>).id === id) setDeleted(true);
+        },
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, instanceId]);
+  }, [id, instanceId, refresh]);
 
-  return { item, loading, error };
+  return { item, loading, error, deleted, refresh };
 }
