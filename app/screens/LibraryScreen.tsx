@@ -78,8 +78,8 @@ export default function LibraryScreen({ onBack, onOpenItem }: Props) {
   } else if (items.length === 0) {
     body = (
       <View style={styles.centered}>
-        <Text style={styles.emptyTitle}>No saved items</Text>
-        <Text style={styles.emptyBody}>Swipe a score card left to keep it here.</Text>
+        <Text style={styles.emptyTitle}>Your library is empty</Text>
+        <Text style={styles.emptyBody}>Nothing is saved yet. Snap a product, then swipe its score card left to save it here.</Text>
       </View>
     );
   }

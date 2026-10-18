@@ -23,7 +23,12 @@ import {
   View,
 } from 'react-native';
 
-export default function CameraScreen() {
+interface Props {
+  onOpenLibrary: () => void; // bottom-left
+  onOpenProfile: () => void; // bottom-right
+}
+
+export default function CameraScreen({ onOpenLibrary, onOpenProfile }: Props) {
   const camera = useRef<CameraView>(null);
   const captureInProgress = useRef(false);
   const session = useRef(0);
@@ -302,24 +307,48 @@ export default function CameraScreen() {
           onExpire={() => saver.dismiss(saver.banner!.id)}
         />
       )}
-      {permission?.granted && <View style={styles.controls}>
-        {photoUri ? (
-          <Pressable accessibilityRole="button" style={styles.button} onPress={resetSnap}>
-            <Text style={styles.buttonText}>Retake photo</Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Take photo"
-            accessibilityState={{ disabled: !ready || capturing || !active, busy: capturing }}
-            disabled={!ready || capturing || !active}
-            onPress={takePhoto}
-            style={[styles.shutter, (!ready || capturing || !active) && styles.disabled]}
-          >
-            {capturing ? <ActivityIndicator color="#fff" /> : <View style={styles.shutterCenter} />}
-          </Pressable>
-        )}
-      </View>}
+      {/* Apple Camera layout: Library bottom-left, shutter center, Profile bottom-right. */}
+      <View style={styles.controls}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Library"
+          onPress={onOpenLibrary}
+          hitSlop={8}
+          style={({ pressed }) => [styles.side, pressed && styles.disabled]}
+        >
+          <View style={styles.gridIcon}>
+            {[0, 1, 2, 3].map((i) => <View key={i} style={styles.gridCell} />)}
+          </View>
+        </Pressable>
+        <View style={styles.center}>
+          {permission?.granted && (photoUri ? (
+            <Pressable accessibilityRole="button" style={styles.button} onPress={resetSnap}>
+              <Text style={styles.buttonText}>Retake photo</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Take photo"
+              accessibilityState={{ disabled: !ready || capturing || !active, busy: capturing }}
+              disabled={!ready || capturing || !active}
+              onPress={takePhoto}
+              style={[styles.shutter, (!ready || capturing || !active) && styles.disabled]}
+            >
+              {capturing ? <ActivityIndicator color="#fff" /> : <View style={styles.shutterCenter} />}
+            </Pressable>
+          ))}
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Profile"
+          onPress={onOpenProfile}
+          hitSlop={8}
+          style={({ pressed }) => [styles.side, pressed && styles.disabled]}
+        >
+          <View style={styles.personHead} />
+          <View style={styles.personBody} />
+        </Pressable>
+      </View>
 
       <Modal visible={detailOpen && !!draft} presentationStyle="pageSheet" animationType="slide" onRequestClose={() => setDetailOpen(false)}>
         <View style={styles.sheetBar}>
@@ -345,7 +374,14 @@ const styles = StyleSheet.create({
   cardLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
   sheetBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, backgroundColor: colors.groupedBackground },
   sheetDone: { color: colors.tint, fontSize: 17, fontWeight: '600' },
-  controls: { alignItems: 'center', justifyContent: 'center', minHeight: 112, padding: 16 },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 112, padding: 16 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // Library / Profile: drawn icons (no icon package) in 52pt circles.
+  side: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
+  gridIcon: { width: 22, height: 22, flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
+  gridCell: { width: 9.5, height: 9.5, borderRadius: 2.5, backgroundColor: '#fff' },
+  personHead: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#fff' },
+  personBody: { width: 20, height: 9, borderTopLeftRadius: 10, borderTopRightRadius: 10, backgroundColor: '#fff', marginTop: 2 },
   button: { backgroundColor: '#fff', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 28 },
   buttonText: { color: '#000', fontSize: 16, fontWeight: '600' },
   shutter: { width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
