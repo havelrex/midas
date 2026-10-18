@@ -309,18 +309,19 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   secondary: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 20 },
   retry: { color: colors.tint, fontSize: 15, fontWeight: '600' },
-  // Same primary button as the item detail screen's Checkout.
-  checkout: { minHeight: 50, borderRadius: 25, backgroundColor: colors.tint, alignItems: 'center', justifyContent: 'center' },
+  // Same primary button as Sign In, item detail and checkout's Buy now: black, so the verdict colors stay the
+  // only color on the card. Blue is kept for text links.
+  checkout: { minHeight: 52, borderRadius: 14, backgroundColor: colors.label, alignItems: 'center', justifyContent: 'center' },
   checkoutPressed: { opacity: 0.8 },
   checkoutText: { color: '#fff', fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  // Glass capsule
+  // Secondary button: same shape as the primary, grey fill.
   toggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     minHeight: 44,
-    borderRadius: 22,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.95)',
     backgroundColor: colors.fill,

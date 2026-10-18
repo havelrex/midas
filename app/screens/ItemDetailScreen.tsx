@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.separator,
   },
   actionError: { color: colors.destructive, fontSize: 15, lineHeight: 20 },
-  primary: { minHeight: 52, borderRadius: 14, backgroundColor: colors.tint, alignItems: 'center', justifyContent: 'center' },
+  primary: { minHeight: 52, borderRadius: 14, backgroundColor: colors.label, alignItems: 'center', justifyContent: 'center' }, // black, as Sign In
   primaryPressed: { opacity: 0.8 },
   primaryText: { color: '#fff', fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
   status: {
